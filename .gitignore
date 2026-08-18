@@ -1,0 +1,27 @@
+# Environment Variables & Secrets
+.env
+.streamlit/secrets.toml
+
+# Python Virtual Environments & Caches
+.venv/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Distribution & Build
+build/
+dist/
+*.egg-info/
+
+# Vector Stores & Cache
+faiss_index/
+.cache/
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
