@@ -21,6 +21,54 @@ import {
   Search
 } from "lucide-react";
 
+const disputeCategories = [
+  "Consumer Defect & Service Deficiency (E-commerce, Electronics, Airlines, Banking)",
+  "Real Estate & Builder Delay (RERA, Possession, Undisclosed Charges)",
+  "Tenant & Landlord Dispute (Deposit Retention, Eviction, Maintenance)",
+  "Labor & Employment (Unpaid Wages, Wrongful Termination, Gratuity)",
+  "Cyber Crime & Financial Fraud (UPI Fraud, Phishing, Identity Theft)",
+  "Civic Negligence & Municipal Failure (Sanitation, Illegal Encroachment, Potholes)"
+];
+
+const grievanceStages = [
+  "No action taken yet (Initial occurrence)",
+  "Verbal or informal request made, but ignored",
+  "Formal written email / grievance ticket submitted (No resolution)",
+  "Opposing party explicitly rejected claim or issued counter-notice",
+  "Police / Local authority complaint filed (Awaiting follow-up)"
+];
+
+const parseMarkdownText = (text) => {
+  if (!text) return null;
+  return text.split("\n").map((line, idx) => {
+    const trimmed = line.trim();
+    if (!trimmed) return <div key={idx} style={{ height: 6 }} />;
+    
+    if (trimmed.startsWith("###")) {
+      return <h4 key={idx} style={{ color: "#38bdf8", marginTop: 12, marginBottom: 6, fontSize: "0.95rem", fontWeight: 700 }}>{trimmed.replace("###", "").trim()}</h4>;
+    } else if (trimmed.startsWith("##")) {
+      return <h3 key={idx} style={{ color: "#818cf8", marginTop: 16, marginBottom: 8, fontSize: "1.05rem", fontWeight: 700 }}>{trimmed.replace("##", "").trim()}</h3>;
+    } else if (trimmed.startsWith("#")) {
+      return <h2 key={idx} style={{ color: "#c084fc", marginTop: 20, marginBottom: 10, fontSize: "1.15rem", fontWeight: 700 }}>{trimmed.replace("#", "").trim()}</h2>;
+    } else if (trimmed.startsWith("-") || trimmed.startsWith("*")) {
+      const bulletText = trimmed.replace(/^[-*]\s+/, "");
+      const parts = bulletText.split("**");
+      return (
+        <li key={idx} style={{ marginLeft: 15, listStyleType: "disc", marginBottom: 4, color: "#cbd5e1" }}>
+          {parts.map((part, pIdx) => pIdx % 2 === 1 ? <strong key={pIdx}>{part}</strong> : part)}
+        </li>
+      );
+    } else {
+      const parts = line.split("**");
+      return (
+        <p key={idx} style={{ margin: "0 0 8px 0" }}>
+          {parts.map((part, pIdx) => pIdx % 2 === 1 ? <strong key={pIdx}>{part}</strong> : part)}
+        </p>
+      );
+    }
+  });
+};
+
 export default function App() {
   // State for global tab navigation
   const [activeTab, setActiveTab] = useState("law-explainer"); // law-explainer, form-filler, schemes, triage
@@ -484,7 +532,7 @@ export default function App() {
                             msg.text
                           ) : (
                             <div>
-                              <strong>Summary of Rights:</strong> {msg.answer.rights.substring(0, 150)}...
+                              <strong>Summary of Rights:</strong> {msg.answer?.rights ? msg.answer.rights.substring(0, 150) : ""}...
                               <div style={{ fontSize: "0.72rem", color: "#38bdf8", marginTop: 4 }}>
                                 Click to display detailed dashboard response
                               </div>
@@ -584,7 +632,7 @@ export default function App() {
                       <Scale size={18} /> 📜 Applicable Civic & Legal Rights
                     </div>
                     <div className="markdown-content">
-                      <p>{activeResponse.answer.rights}</p>
+                      {parseMarkdownText(activeResponse.answer.rights)}
                     </div>
                   </div>
 
@@ -635,7 +683,7 @@ export default function App() {
                       <Rocket size={18} /> 🚀 Actionable Benefits & Next Steps
                     </div>
                     <div className="markdown-content">
-                      <p>{activeResponse.answer.benefits}</p>
+                      {parseMarkdownText(activeResponse.answer.benefits)}
                     </div>
                   </div>
 
@@ -645,7 +693,7 @@ export default function App() {
                       <AlertTriangle size={18} /> ⚠️ Critical Risks & Limitations
                     </div>
                     <div className="markdown-content" style={{ color: "#d97706" }}>
-                      <p>{activeResponse.answer.risks}</p>
+                      {parseMarkdownText(activeResponse.answer.risks)}
                     </div>
                   </div>
 

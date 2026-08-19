@@ -172,10 +172,10 @@ Citizen's Question:
 {question}
 
 You MUST output your response in JSON format. The JSON object must contain the following keys:
-1. "rights": Explain the civic and legal rights that apply to the citizen's situation based on the context. Keep it in plain, readable English. (string/markdown)
+1. "rights": Explain the civic and legal rights that apply to the citizen's situation based on the context. You MUST format this as a structured list of bullet points using hyphens (e.g., "- Right detail"). Use bolding (e.g., "**Key concept**") where appropriate. Keep it in plain, readable English. (string/markdown)
 2. "eligibility": List the eligibility conditions or requirements mentioned in the context. For each condition, determine its status based on the user's question (e.g., "Satisfied", "Required", "Information Needed"). Format this as a JSON list of objects, each with "condition" and "status" keys.
-3. "benefits": Explain what benefits, remedies, or actions the citizen can take based on the context (e.g., how to apply, who to contact, next steps). (string/markdown)
-4. "risks": Explain what risks, limitations, exceptions, deadlines, or warnings the citizen should consider. (string/markdown)
+3. "benefits": Explain what benefits, remedies, or actions the citizen can take based on the context (e.g., how to apply, who to contact, next steps). You MUST format this as a structured list of bullet points using hyphens (e.g., "- Benefit detail"). Use bolding where appropriate. (string/markdown)
+4. "risks": Explain what risks, limitations, exceptions, deadlines, or warnings the citizen should consider. You MUST format this as a structured list of bullet points using hyphens (e.g., "- Risk detail"). Use bolding where appropriate. (string/markdown)
 
 Ensure the output is valid JSON and nothing else. Do not wrap in markdown code blocks.
 """
