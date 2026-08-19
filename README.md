@@ -30,18 +30,17 @@ The application is structured into four core civic intelligence tabs:
    - Interactive intake form evaluating legal disputes (Consumer, RERA/Real Estate, Labor, Tenancy, Cyber Crime, Civic Negligence).
    - Generates an actionable roadmap covering procedural validity, designated authorities (tribunals, commissions, ombudsmen), limitation periods, and mandatory evidentiary checklists.
 
----
-
 ## 🛠️ Technology Stack
 
 | Layer | Technology |
 |---|---|
-| **Frontend / Web UI** | Streamlit (Tabs, Custom CSS Glassmorphism & JetBrains Mono) |
+| **Frontend / Web UI** | React.js (Vite, Lucide Icons, Glassmorphism, 3D CSS animations) |
+| **API Layer / Backend** | FastAPI (uvicorn) |
 | **Large Language Model** | Mistral 7B (`open-mistral-7b`) via official `langchain-mistralai` |
 | **Embeddings** | `sentence-transformers/all-MiniLM-L6-v2` |
 | **Vector Indexing** | FAISS (`faiss-cpu`) |
 | **Document Processing** | `pypdf` + LangChain Recursive Text Splitter |
-| **Configuration** | `python-dotenv` & Streamlit Secrets |
+| **Configuration** | `python-dotenv` & `.env` file |
 
 ---
 
@@ -66,7 +65,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install Dependencies
+### 3. Install Backend Dependencies
 ```bash
 pip install -r requirements.txt
 ```
@@ -81,11 +80,21 @@ Open `.env` and add your Mistral API Key:
 MISTRAL_API_KEY=your_actual_mistral_api_key_here
 ```
 
-### 5. Launch the Streamlit App
+### 5. Launch the FastAPI Backend
 ```bash
-streamlit run app.py
+python -u -m uvicorn main:app --host 127.0.0.1 --port 8000
 ```
-The app will open automatically in your browser at `http://localhost:8501`.
+The backend API server will run at `http://127.0.0.1:8000`.
+
+### 6. Launch the React Frontend
+Open a new terminal window:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+The client dashboard will open automatically in your browser at `http://localhost:5173`.
+
 
 ---
 

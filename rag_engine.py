@@ -183,41 +183,111 @@ Ensure the output is valid JSON and nothing else. Do not wrap in markdown code b
 
 def parse_json_response(response_text: str) -> dict:
     """
-    Strips markdown code block markers and parses JSON reliably.
+    Parses JSON response with robust cleanup, regex extraction, and ast.literal_eval fallbacks.
     """
     cleaned = response_text.strip()
+    
+    # 1. Try direct JSON load
+    try:
+        data = json.loads(cleaned, strict=False)
+        if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
+            return data
+    except Exception:
+        pass
+        
+    # 2. Try code block stripping
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```[a-zA-Z]*\n", "", cleaned)
         cleaned = re.sub(r"\n```$", "", cleaned)
         cleaned = cleaned.strip()
-    
-    try:
-        data = json.loads(cleaned)
-        # Ensure all required keys exist
-        for key in ["rights", "eligibility", "benefits", "risks"]:
-            if key not in data:
-                data[key] = ""
-        return data
-    except Exception as e:
-        print(f"JSON parsing error: {e}")
-        json_match = re.search(r"\{.*\}", cleaned, re.DOTALL)
-        if json_match:
-            try:
-                data = json.loads(json_match.group(0))
-                for key in ["rights", "eligibility", "benefits", "risks"]:
-                    if key not in data:
-                        data[key] = ""
-                return data
-            except Exception:
-                pass
         
-        # Fallback structure
-        return {
-            "rights": response_text,
-            "eligibility": [{"condition": "Verify requirements in sources", "status": "Information Needed"}],
-            "benefits": "Please check reference materials for actionable steps.",
-            "risks": "Verify timelines and exceptions."
-        }
+    try:
+        data = json.loads(cleaned, strict=False)
+        if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
+            return data
+    except Exception:
+        pass
+        
+    # 3. Extract JSON object using regex (greedy match from first { to last })
+    json_match = re.search(r"(\{.*\})", response_text, re.DOTALL)
+    if json_match:
+        json_candidate = json_match.group(1).strip()
+        try:
+            data = json.loads(json_candidate, strict=False)
+            if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
+                return data
+        except Exception:
+            pass
+            
+        # Try ast.literal_eval on the candidate
+        try:
+            import ast
+            data = ast.literal_eval(json_candidate)
+            if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
+                return data
+        except Exception:
+            pass
+
+    # 4. Deep structural regex parser (handles unescaped double quotes inside strings)
+    try:
+        parsed_data = {}
+        
+        # Extract rights
+        rights_match = re.search(r'"rights"\s*:\s*"(.*?)"\s*,\s*"eligibility"', response_text, re.DOTALL)
+        if rights_match:
+            parsed_data["rights"] = rights_match.group(1).strip()
+        else:
+            # Fallback match up to next key
+            rights_match = re.search(r'"rights"\s*:\s*"(.*?)"\s*,\s*"\w+"', response_text, re.DOTALL)
+            if rights_match:
+                parsed_data["rights"] = rights_match.group(1).strip()
+
+        # Extract eligibility list
+        elig_match = re.search(r'"eligibility"\s*:\s*(\[.*?\])\s*,\s*"benefits"', response_text, re.DOTALL)
+        if elig_match:
+            elig_str = elig_match.group(1).strip()
+            try:
+                parsed_data["eligibility"] = json.loads(elig_str, strict=False)
+            except Exception:
+                # Manual parse list items
+                items = []
+                for item_match in re.finditer(r'\{\s*"condition"\s*:\s*"(.*?)"\s*,\s*"status"\s*:\s*"(.*?)"\s*\}', elig_str, re.DOTALL):
+                    items.append({
+                        "condition": item_match.group(1).strip(),
+                        "status": item_match.group(2).strip()
+                    })
+                parsed_data["eligibility"] = items
+        
+        # Extract benefits
+        benefits_match = re.search(r'"benefits"\s*:\s*"(.*?)"\s*,\s*"risks"', response_text, re.DOTALL)
+        if benefits_match:
+            parsed_data["benefits"] = benefits_match.group(1).strip()
+
+        # Extract risks
+        risks_match = re.search(r'"risks"\s*:\s*"(.*?)"\s*\}\s*$', response_text, re.DOTALL)
+        if risks_match:
+            parsed_data["risks"] = risks_match.group(1).strip()
+        else:
+            risks_match = re.search(r'"risks"\s*:\s*"(.*?)"\s*[^"]*$', response_text, re.DOTALL)
+            if risks_match:
+                parsed_data["risks"] = risks_match.group(1).strip()
+
+        # Verify if we successfully extracted the core fields
+        if parsed_data.get("rights") or parsed_data.get("benefits"):
+            for key in ["rights", "eligibility", "benefits", "risks"]:
+                if key not in parsed_data:
+                    parsed_data[key] = [] if key == "eligibility" else ""
+            return parsed_data
+    except Exception as e:
+        print(f"Deep regex parser error: {e}")
+        
+    # 5. Final fallback structure
+    return {
+        "rights": response_text,
+        "eligibility": [{"condition": "Verify requirements in sources", "status": "Information Needed"}],
+        "benefits": "Please check reference materials for actionable steps.",
+        "risks": "Verify timelines and exceptions."
+    }
 
 
 def query_rag_engine(global_vs: FAISS, user_vs: FAISS, question: str, k: int = 4) -> dict:

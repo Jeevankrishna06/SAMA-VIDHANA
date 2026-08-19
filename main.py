@@ -194,3 +194,64 @@ async def chat(payload: dict):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+import schemes_data
+
+@app.post("/api/generate-form")
+async def generate_form(payload: dict):
+    form_type = payload.get("form_type", "")
+    details = payload.get("details", {})
+    if not form_type or not details:
+        raise HTTPException(status_code=400, detail="Form type and details are required.")
+    try:
+        generated_text = rag_engine.generate_plaintext_application(form_type, details)
+        return {"generated_text": generated_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/triage")
+async def triage(payload: dict):
+    if not payload.get("description"):
+        raise HTTPException(status_code=400, detail="Incident narrative description is required.")
+    try:
+        triage_report = rag_engine.triage_citizen_dispute(payload)
+        return {"triage_report": triage_report}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/schemes")
+async def get_matching_schemes(payload: dict):
+    query = payload.get("query", "").strip()
+    category = payload.get("category", "All Categories")
+    age = payload.get("age", 35)
+    income = payload.get("income", "")
+    occupation = payload.get("occupation", "")
+    
+    if not query:
+        query = f"Welfare schemes for {occupation} in category {category} with income {income} and age {age}"
+        
+    try:
+        schemes_vectorstore = schemes_data.get_schemes_vectorstore()
+        retriever = schemes_vectorstore.as_retriever(search_kwargs={"k": 5})
+        matched_docs = retriever.invoke(query)
+        
+        # Filter by category if selected
+        if category != "All Categories":
+            filtered = [d for d in matched_docs if category.lower() in d.metadata.get("category", "").lower()]
+            if filtered:
+                matched_docs = filtered
+                
+        schemes_list = []
+        for doc in matched_docs:
+            meta = doc.metadata
+            schemes_list.append({
+                "name": meta.get("name", "Welfare Scheme"),
+                "category": meta.get("category", "General"),
+                "ministry": meta.get("ministry", "Government of India"),
+                "content": doc.page_content
+            })
+            
+        return {"schemes": schemes_list}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
