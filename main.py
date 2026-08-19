@@ -1,0 +1,196 @@
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+import os
+import shutil
+import rag_engine
+from langchain_core.documents import Document
+
+app = FastAPI(title="SAMA-VIDHANA API")
+
+# Enable CORS for local Vite React development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Global variables
+GLOBAL_VS = None
+USER_VECTORSTORES = {}  # filename -> FAISS index
+UPLOAD_DIR = "./uploads"
+
+# Ensure upload directory exists
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+import threading
+
+@app.on_event("startup")
+async def startup_event():
+    def index_background():
+        global GLOBAL_VS
+        print("FastAPI: Starting global legal database indexing in background thread...")
+        GLOBAL_VS = rag_engine.get_global_vectorstore()
+        print("FastAPI: Global legal database indexing completed successfully.")
+        
+    threading.Thread(target=index_background, daemon=True).start()
+
+@app.get("/api/sources")
+async def get_sources():
+    """
+    Returns list of active global acts and user uploaded PDFs.
+    """
+    data_dir = "./data"
+    global_acts = []
+    if os.path.exists(data_dir):
+        global_acts = [f for f in os.listdir(data_dir) if f.endswith(".pdf")]
+    
+    uploaded_files = list(USER_VECTORSTORES.keys())
+    
+    return {
+        "global_sources": global_acts,
+        "user_sources": uploaded_files
+    }
+
+@app.post("/api/upload")
+async def upload_document(file: UploadFile = File(...)):
+    """
+    Accepts PDF, extracts text, index to FAISS in memory, and cache.
+    """
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+        
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    try:
+        # Save file locally
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Parse and Index PDF
+        docs = rag_engine.extract_text_from_pdf(file_path)
+        vs = rag_engine.build_faiss_index_from_documents(docs)
+        USER_VECTORSTORES[file.filename] = vs
+        
+        return {
+            "filename": file.filename,
+            "status": "success",
+            "page_count": len(docs)
+        }
+    except Exception as e:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/chat")
+async def chat(payload: dict):
+    """
+    Accepts question and optional selected sources, retrieves context, and runs Mistral structured RAG.
+    """
+    question = payload.get("question", "")
+    if not question:
+        raise HTTPException(status_code=400, detail="Question cannot be empty.")
+        
+    selected_sources = payload.get("selected_sources", [])
+    
+    # Retrieve active vector stores
+    active_user_vs = []
+    if selected_sources:
+        for src in selected_sources:
+            if src in USER_VECTORSTORES:
+                active_user_vs.append(USER_VECTORSTORES[src])
+    else:
+        active_user_vs = list(USER_VECTORSTORES.values())
+        
+    # Decide if we query global acts
+    use_global = True
+    if selected_sources:
+        use_global = False
+        data_dir = "./data"
+        global_acts = []
+        if os.path.exists(data_dir):
+            global_acts = [f for f in os.listdir(data_dir) if f.endswith(".pdf")]
+        for src in selected_sources:
+            if src in global_acts:
+                use_global = True
+                break
+                
+    retrieved_docs = []
+    
+    # 1. Query global acts
+    if use_global:
+        if GLOBAL_VS is None:
+            # Check if there are acts to index
+            data_dir = "./data"
+            global_acts = []
+            if os.path.exists(data_dir):
+                global_acts = [f for f in os.listdir(data_dir) if f.endswith(".pdf")]
+            if global_acts:
+                return {
+                    "answer": {
+                        "rights": "SAMA-VIDHANA global legal database is currently indexing its documents in the background. Please wait about 15-20 seconds and try your question again.",
+                        "eligibility": [{"condition": "Database indexing in progress", "status": "Information Needed"}],
+                        "benefits": "Service is initializing. You can also upload a PDF document on the left and query it immediately.",
+                        "risks": "Database starting up."
+                    },
+                    "sources": []
+                }
+        else:
+            try:
+                global_retriever = GLOBAL_VS.as_retriever(search_kwargs={"k": 4})
+                global_docs = global_retriever.invoke(question)
+                retrieved_docs.extend(global_docs)
+            except Exception as e:
+                print(f"Error querying global VS: {e}")
+            
+    # 2. Query user uploaded documents
+    for vs in active_user_vs:
+        try:
+            user_retriever = vs.as_retriever(search_kwargs={"k": 3})
+            user_docs = user_retriever.invoke(question)
+            retrieved_docs.extend(user_docs)
+        except Exception as e:
+            print(f"Error querying user VS: {e}")
+            
+    if not retrieved_docs:
+        return {
+            "answer": {
+                "rights": "The provided information does not contain the answer.",
+                "eligibility": [],
+                "benefits": "No relevant documents found in selected sources.",
+                "risks": "Please verify your question or upload a document."
+            },
+            "sources": []
+        }
+        
+    # Compile context
+    formatted_context = "\n\n---\n\n".join(
+        [
+            f"[Source: {doc.metadata.get('source', 'Doc')} | Page: {doc.metadata.get('page', 'N/A')}]\n{doc.page_content}"
+            for doc in retrieved_docs
+        ]
+    )
+    
+    try:
+        llm = rag_engine.get_llm(temperature=0.1)
+        prompt = rag_engine.ChatPromptTemplate.from_template(rag_engine.STRUCTURED_RAG_PROMPT_TEMPLATE)
+        chain = prompt | llm | rag_engine.StrOutputParser()
+        
+        response = chain.invoke({"context": formatted_context, "question": question})
+        parsed_answer = rag_engine.parse_json_response(response)
+        
+        # Serialize sources for frontend
+        sources_list = []
+        for doc in retrieved_docs:
+            sources_list.append({
+                "source": doc.metadata.get("source", "Unknown"),
+                "page": doc.metadata.get("page", 1),
+                "content": doc.page_content
+            })
+            
+        return {
+            "answer": parsed_answer,
+            "sources": sources_list
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
