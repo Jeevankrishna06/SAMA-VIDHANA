@@ -6,8 +6,17 @@ from dotenv import load_dotenv
 # Load local environment
 load_dotenv()
 
-# Import RAG and data modules
-import rag_engine
+# Import RAG and data modules (Dependency Injection)
+from rag_engine import (
+    get_global_vectorstore,
+    query_rag_engine,
+    parse_json_response,
+    get_mistral_api_key,
+    extract_text_from_pdf,
+    build_faiss_index_from_documents,
+    generate_plaintext_application,
+    triage_citizen_dispute,
+)
 import schemes_data
 from langchain_core.documents import Document
 
@@ -19,9 +28,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize Global Vectorstore
+# State Management: Initialise Global FAISS Index using @st.cache_resource
+@st.cache_resource(show_spinner="Indexing Global Civic & Legal Knowledge Base...")
+def load_global_vectorstore():
+    """Initializes and caches the global FAISS index across user interactions."""
+    return get_global_vectorstore()
+
 if "global_vectorstore" not in st.session_state:
-    st.session_state.global_vectorstore = rag_engine.get_global_vectorstore()
+    st.session_state.global_vectorstore = load_global_vectorstore()
 
 # Custom CSS for rich aesthetics and clean typography
 st.markdown("""
@@ -257,7 +271,7 @@ with st.sidebar:
     )
     
     # Check API key status
-    api_key = rag_engine.get_mistral_api_key()
+    api_key = get_mistral_api_key()
     if api_key:
         st.success("✅ **Mistral API Key Active** (Loaded from configuration)")
     else:
@@ -326,8 +340,8 @@ with tab1:
             if st.session_state.tab1_doc_name != uploaded_pdf.name:
                 with st.spinner(f"Indexing '{uploaded_pdf.name}' into FAISS vector database..."):
                     try:
-                        docs = rag_engine.extract_text_from_pdf(uploaded_pdf)
-                        st.session_state.tab1_vectorstore = rag_engine.build_faiss_index_from_documents(docs)
+                        docs = extract_text_from_pdf(uploaded_pdf)
+                        st.session_state.tab1_vectorstore = build_faiss_index_from_documents(docs)
                         st.session_state.tab1_doc_name = uploaded_pdf.name
                         st.session_state.tab1_messages = []
                         st.success(f"✅ Indexed **{uploaded_pdf.name}** ({len(docs)} pages).")
@@ -341,11 +355,14 @@ with tab1:
                 with open(sample_path, "r", encoding="utf-8") as f:
                     sample_text = f.read()
                 with st.spinner("Indexing Sample RTI Act (2005)..."):
-                    sample_doc = Document(page_content=sample_text, metadata={"source": "RTI_Act_2005.pdf", "page": 1})
-                    st.session_state.tab1_vectorstore = rag_engine.build_faiss_index_from_documents([sample_doc])
-                    st.session_state.tab1_doc_name = "RTI_Act_2005.pdf (Built-in Sample)"
-                    st.session_state.tab1_messages = []
-                    st.success("✅ Loaded & Indexed **Right to Information Act, 2005**!")
+                    try:
+                        sample_doc = Document(page_content=sample_text, metadata={"source": "RTI_Act_2005.pdf", "page": 1})
+                        st.session_state.tab1_vectorstore = build_faiss_index_from_documents([sample_doc])
+                        st.session_state.tab1_doc_name = "RTI_Act_2005.pdf (Built-in Sample)"
+                        st.session_state.tab1_messages = []
+                        st.success("✅ Loaded & Indexed **Right to Information Act, 2005**!")
+                    except Exception as e:
+                        st.error(f"Error indexing sample document: {e}")
 
         # Active Document Status
         db_status = "📌 **Active Base**: Global Civic & Legal Database (Default)"
@@ -372,10 +389,13 @@ with tab1:
                 if msg["role"] == "user":
                     st.markdown(msg["content"])
                 else:
-                    rights_summary = msg["content"].get("rights", "")
-                    if len(rights_summary) > 180:
-                        rights_summary = rights_summary[:180] + "..."
-                    st.markdown(f"**Rights summary:** {rights_summary}")
+                    if msg.get("error"):
+                        st.markdown(f"⚠️ *Query encountered an issue: {msg['error']}*")
+                    else:
+                        rights_summary = msg["content"].get("rights", "") if isinstance(msg.get("content"), dict) else str(msg.get("content", ""))
+                        if len(rights_summary) > 180:
+                            rights_summary = rights_summary[:180] + "..."
+                        st.markdown(f"**Rights summary:** {rights_summary}")
                     st.caption("*(Detailed structured response is visible in the right dashboard panel)*")
 
         # Chat Input
@@ -389,29 +409,44 @@ with tab1:
             st.session_state.tab1_messages.append({"role": "user", "content": user_query})
             st.rerun()
 
-    # RAG Execution when query is submitted
+    # RAG Execution when query is submitted (UI Synchronisation & Robust Error Boundaries)
     if st.session_state.tab1_messages and st.session_state.tab1_messages[-1]["role"] == "user":
         last_query = st.session_state.tab1_messages[-1]["content"]
         
-        # We need to query RAG and append assistant message
         with col_left:
             with st.spinner("Analyzing legal context and generating structured response..."):
                 try:
-                    result = rag_engine.query_rag_engine(
+                    result = query_rag_engine(
                         global_vs=st.session_state.global_vectorstore,
                         user_vs=st.session_state.tab1_vectorstore,
                         question=last_query
                     )
+                    answer_data = result.get("answer", {})
+                    # Ensure answer data is a properly parsed dictionary
+                    if isinstance(answer_data, str):
+                        answer_data = parse_json_response(answer_data)
+                    
                     st.session_state.tab1_messages.append({
                         "role": "assistant",
-                        "content": result["answer"],
-                        "sources": result["source_documents"]
+                        "content": answer_data,
+                        "sources": result.get("source_documents", []),
+                        "error": None
                     })
-                    st.rerun()
                 except Exception as e:
-                    st.error(f"Error querying model: {e}")
-                    # Remove user query if it failed to let user retry
-                    st.session_state.tab1_messages.pop()
+                    # Graceful Error Boundary - capture error without crashing the Streamlit app
+                    error_text = str(e)
+                    st.session_state.tab1_messages.append({
+                        "role": "assistant",
+                        "content": {
+                            "rights": "Unable to process query due to an engine error.",
+                            "eligibility": [{"condition": "Engine Execution / LLM Invocation", "status": "Failed"}],
+                            "benefits": "Please check your network connection, API key, or query and try again.",
+                            "risks": f"System Alert: {error_text}"
+                        },
+                        "sources": [],
+                        "error": error_text
+                    })
+                st.rerun()
 
     # Determine latest assistant message to render on the right panel
     latest_assistant_msg = None
@@ -423,42 +458,70 @@ with tab1:
     with col_right:
         st.markdown("#### 📊 Civic & Legal Response Dashboard")
         if latest_assistant_msg is not None:
-            # Extract content keys
-            content = latest_assistant_msg["content"]
+            # Display Error Alert if error boundary caught an exception
+            if latest_assistant_msg.get("error"):
+                st.markdown(f"""
+                <div class="warning-alert" style="border-left: 5px solid #EF4444; background: #FEF2F2; color: #991B1B; margin-bottom: 18px;">
+                    <b style="font-size: 1rem;">⚠️ Engine Processing Notice</b><br>
+                    <span style="font-size: 0.92rem; line-height: 1.5;">{latest_assistant_msg['error']}</span>
+                    <div style="margin-top: 8px; font-size: 0.82rem; color: #7F1D1D;">
+                        Please verify your <code>MISTRAL_API_KEY</code> configuration or ensure the document vectorstore is active.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Extract and validate content keys
+            raw_content = latest_assistant_msg.get("content", {})
+            if isinstance(raw_content, str):
+                content = parse_json_response(raw_content)
+            elif isinstance(raw_content, dict):
+                content = raw_content
+            else:
+                content = {
+                    "rights": str(raw_content),
+                    "eligibility": [],
+                    "benefits": "",
+                    "risks": ""
+                }
             
-            # Display Rights
+            # 1. Display Rights Cards
             st.markdown("### 📜 Applicable Civic & Legal Rights")
+            rights_text = content.get("rights", "") or "No specific rights identified in the current context."
             st.markdown(f'<div class="scheme-card" style="border-left-color: #38BDF8; margin-top: 10px;">'
-                        f'<div style="font-size: 1rem; color: #1E293B; line-height: 1.6;">{content.get("rights", "")}</div>'
+                        f'<div style="font-size: 1rem; color: #1E293B; line-height: 1.6;">{rights_text}</div>'
                         f'</div>', unsafe_allow_html=True)
             
-            # Display Eligibility
+            # 2. Display Eligibility Tables
             st.markdown("### 🎯 Eligibility & Statutory Conditions")
             elig_data = content.get("eligibility", [])
             if elig_data and isinstance(elig_data, list):
                 rows_html = ""
                 for item in elig_data:
-                    cond = item.get("condition", "Verify requirement")
-                    status = item.get("status", "Information Needed")
+                    if isinstance(item, dict):
+                        cond = item.get("condition", "Verify requirement")
+                        status = item.get("status", "Information Needed")
+                    else:
+                        cond = str(item)
+                        status = "Information Needed"
                     
                     # Compute color styles
                     badge_color = "#E2E8F0"
                     text_color = "#475569"
-                    status_text = status
+                    status_text = str(status)
                     
-                    status_lower = status.lower()
+                    status_lower = status_text.lower()
                     if any(x in status_lower for x in ["satisfied", "yes", "pass", "eligible"]):
                         badge_color = "#D1FAE5"
                         text_color = "#065F46"
-                        status_text = "✓ " + status
+                        status_text = "✓ " + status_text
                     elif any(x in status_lower for x in ["needed", "unknown", "missing"]):
                         badge_color = "#FEF3C7"
                         text_color = "#92400E"
-                        status_text = "? " + status
-                    elif any(x in status_lower for x in ["required", "fail", "no", "alert", "warning"]):
+                        status_text = "? " + status_text
+                    elif any(x in status_lower for x in ["required", "fail", "no", "alert", "warning", "failed"]):
                         badge_color = "#FEE2E2"
                         text_color = "#991B1B"
-                        status_text = "⚠ " + status
+                        status_text = "⚠ " + status_text
                         
                     rows_html += f"""
                     <tr style="border-bottom: 1px solid #F1F5F9;">
@@ -489,19 +552,21 @@ with tab1:
             else:
                 st.info("No explicit eligibility conditions identified in the retrieved context.")
                 
-            # Display Benefits
+            # 3. Display Benefits Lists
             st.markdown("### 🚀 Actionable Benefits & Next Steps")
+            benefits_text = content.get("benefits", "") or "No specific actionable benefits listed."
             st.markdown(f'<div class="scheme-card" style="border-left-color: #818CF8; margin-top: 10px;">'
-                        f'<div style="font-size: 1rem; color: #1E293B; line-height: 1.6;">{content.get("benefits", "")}</div>'
+                        f'<div style="font-size: 1rem; color: #1E293B; line-height: 1.6;">{benefits_text}</div>'
                         f'</div>', unsafe_allow_html=True)
             
-            # Display Risks & Limitations
+            # 4. Display Risks Alerts
             st.markdown("### ⚠️ Critical Risks & Limitations")
+            risks_text = content.get("risks", "") or "Ensure all claims and procedures are verified against official records."
             st.markdown(f'<div class="warning-alert" style="margin-top: 10px; border-left: 5px solid #F59E0B;">'
-                        f'<b>Please Note:</b><br>{content.get("risks", "")}'
+                        f'<b>Please Note:</b><br>{risks_text}'
                         f'</div>', unsafe_allow_html=True)
             
-            # Display Sources
+            # 5. Display Sources
             if latest_assistant_msg.get("sources"):
                 st.markdown("### 🔍 Verified Citations & References")
                 for i, doc in enumerate(latest_assistant_msg["sources"]):
@@ -573,7 +638,7 @@ with tab2:
                     "Additional Context & Reference Numbers": additional_notes
                 }
                 try:
-                    generated_text = rag_engine.generate_plaintext_application(form_type, details)
+                    generated_text = generate_plaintext_application(form_type, details)
                     st.session_state.generated_application = generated_text
                     st.success("✅ Application drafted successfully!")
                 except Exception as e:
@@ -734,7 +799,7 @@ with tab4:
                     "documents": supporting_documents
                 }
                 try:
-                    triage_result = rag_engine.triage_citizen_dispute(triage_payload)
+                    triage_result = triage_citizen_dispute(triage_payload)
                     st.session_state.triage_report = triage_result
                 except Exception as e:
                     st.error(f"Error executing legal triage: {e}")
