@@ -19,6 +19,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Initialize Global Vectorstore
+if "global_vectorstore" not in st.session_state:
+    st.session_state.global_vectorstore = rag_engine.get_global_vectorstore()
+
 # Custom CSS for rich aesthetics and clean typography
 st.markdown("""
 <style>
@@ -134,6 +138,85 @@ st.markdown("""
         border: 1px solid #A7F3D0;
         margin-bottom: 16px;
     }
+
+    /* 3D Flipping Logo Styles */
+    .logo-container {
+        perspective: 1000px;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        margin-bottom: 25px;
+        margin-top: 10px;
+    }
+    
+    .logo-3d-scene {
+        width: 260px;
+        height: 55px;
+        perspective: 1000px;
+    }
+    
+    .logo-3d-prism {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        transform-style: preserve-3d;
+        transform: translateZ(-75px);
+        animation: rotatePrismY 12s infinite ease-in-out;
+    }
+    
+    .logo-face {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        backface-visibility: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-weight: 800;
+        font-size: 1.15rem;
+        letter-spacing: 0.5px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-sizing: border-box;
+    }
+    
+    .logo-face-en {
+        color: #38BDF8;
+        border-color: rgba(56, 189, 248, 0.3);
+        transform: rotateY(0deg) translateZ(75px);
+    }
+    
+    .logo-face-hi {
+        color: #818CF8;
+        border-color: rgba(129, 140, 248, 0.3);
+        transform: rotateY(120deg) translateZ(75px);
+    }
+    
+    .logo-face-kn {
+        color: #C084FC;
+        border-color: rgba(192, 132, 252, 0.3);
+        transform: rotateY(240deg) translateZ(75px);
+    }
+    
+    @keyframes rotatePrismY {
+        0%, 25% {
+            transform: translateZ(-75px) rotateY(0deg);
+        }
+        30%, 55% {
+            transform: translateZ(-75px) rotateY(-120deg);
+        }
+        60%, 85% {
+            transform: translateZ(-75px) rotateY(-240deg);
+        }
+        90%, 100% {
+            transform: translateZ(-75px) rotateY(-360deg);
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -156,7 +239,17 @@ st.markdown("""
 
 # Sidebar with status and project info
 with st.sidebar:
-    st.image("https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=400&auto=format&fit=crop&q=60&ixlib=rb-4.0.3", use_container_width=True)
+    st.markdown("""
+    <div class="logo-container">
+        <div class="logo-3d-scene">
+            <div class="logo-3d-prism">
+                <div class="logo-face logo-face-en">🏛️ SAMA-VIDHANA</div>
+                <div class="logo-face logo-face-hi">⚖️ सम-विधान</div>
+                <div class="logo-face logo-face-kn">🏛️ ಸಮ-ವಿಧಾನ</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown("### ⚖️ **About SAMA-VIDHANA**")
     st.info(
         "**SAMA-VIDHANA** (सम-विधान) bridges the gap between complex statutory legal codes and ordinary citizens. "
@@ -198,22 +291,10 @@ with tab1:
     st.markdown("### 📖 Law Explainer — Statutory Clause Simplifier")
     st.write(
         "Upload any legal act, gazette notification, contract, or government order (PDF), "
-        "or load our built-in sample legal act to query and simplify statutory clauses in plain English."
+        "or load our built-in sample legal act to query and simplify statutory clauses in plain English. "
+        "SAMA-VIDHANA will search both the global legal base and your uploaded documents."
     )
 
-    col_up1, col_up2 = st.columns([3, 2])
-    
-    with col_up1:
-        uploaded_pdf = st.file_uploader(
-            "Upload Legal Document / Act (PDF)",
-            type=["pdf"],
-            help="Upload an official act, legal notice, tenancy agreement, or government gazette."
-        )
-
-    with col_up2:
-        st.markdown("**Or Test with Sample Document:**")
-        sample_btn = st.button("📄 Load Sample RTI Act (2005)", help="Load pre-configured Right to Information Act sample for instant testing.")
-        
     # State management for vector store
     if "tab1_vectorstore" not in st.session_state:
         st.session_state.tab1_vectorstore = None
@@ -222,91 +303,224 @@ with tab1:
     if "tab1_messages" not in st.session_state:
         st.session_state.tab1_messages = []
 
-    # Handle Uploaded PDF
-    if uploaded_pdf is not None:
-        if st.session_state.tab1_doc_name != uploaded_pdf.name:
-            with st.spinner(f"Indexing '{uploaded_pdf.name}' into FAISS vector database..."):
-                try:
-                    docs = rag_engine.extract_text_from_pdf(uploaded_pdf)
-                    st.session_state.tab1_vectorstore = rag_engine.build_faiss_index_from_documents(docs)
-                    st.session_state.tab1_doc_name = uploaded_pdf.name
-                    st.session_state.tab1_messages = []
-                    st.success(f"✅ Successfully indexed **{uploaded_pdf.name}** ({len(docs)} pages processed).")
-                except Exception as e:
-                    st.error(f"Error processing PDF: {e}")
+    # Two column layout: left for interaction, right for structured output
+    col_left, col_right = st.columns([1, 1], gap="large")
 
-    # Handle Sample Document Load
-    elif sample_btn:
-        sample_path = os.path.join(os.path.dirname(__file__), "sample_data", "sample_rti_act.txt")
-        if os.path.exists(sample_path):
-            with open(sample_path, "r", encoding="utf-8") as f:
-                sample_text = f.read()
-            with st.spinner("Indexing Sample RTI Act (2005)..."):
-                sample_doc = Document(page_content=sample_text, metadata={"source": "RTI_Act_2005.pdf", "page": 1})
-                st.session_state.tab1_vectorstore = rag_engine.build_faiss_index_from_documents([sample_doc])
-                st.session_state.tab1_doc_name = "RTI_Act_2005.pdf (Built-in Sample)"
-                st.session_state.tab1_messages = []
-                st.success("✅ Loaded & Indexed **Right to Information Act, 2005**!")
-
-    # Active Document Status
-    if st.session_state.tab1_vectorstore is not None:
-        st.markdown(f"📌 **Active Knowledge Base**: `{st.session_state.tab1_doc_name}`")
+    with col_left:
+        st.markdown("#### 📥 Document Knowledge Source")
+        col_up1, col_up2 = st.columns([3, 2])
         
+        with col_up1:
+            uploaded_pdf = st.file_uploader(
+                "Upload Legal Document / Act (PDF)",
+                type=["pdf"],
+                help="Upload an official act, legal notice, tenancy agreement, or government gazette."
+            )
+
+        with col_up2:
+            st.markdown("**Or Use Test Document:**")
+            sample_btn = st.button("📄 Load Sample RTI Act", help="Load pre-configured Right to Information Act sample for instant testing.")
+
+        # Handle Uploaded PDF
+        if uploaded_pdf is not None:
+            if st.session_state.tab1_doc_name != uploaded_pdf.name:
+                with st.spinner(f"Indexing '{uploaded_pdf.name}' into FAISS vector database..."):
+                    try:
+                        docs = rag_engine.extract_text_from_pdf(uploaded_pdf)
+                        st.session_state.tab1_vectorstore = rag_engine.build_faiss_index_from_documents(docs)
+                        st.session_state.tab1_doc_name = uploaded_pdf.name
+                        st.session_state.tab1_messages = []
+                        st.success(f"✅ Indexed **{uploaded_pdf.name}** ({len(docs)} pages).")
+                    except Exception as e:
+                        st.error(f"Error processing PDF: {e}")
+
+        # Handle Sample Document Load
+        elif sample_btn:
+            sample_path = os.path.join(os.path.dirname(__file__), "sample_data", "sample_rti_act.txt")
+            if os.path.exists(sample_path):
+                with open(sample_path, "r", encoding="utf-8") as f:
+                    sample_text = f.read()
+                with st.spinner("Indexing Sample RTI Act (2005)..."):
+                    sample_doc = Document(page_content=sample_text, metadata={"source": "RTI_Act_2005.pdf", "page": 1})
+                    st.session_state.tab1_vectorstore = rag_engine.build_faiss_index_from_documents([sample_doc])
+                    st.session_state.tab1_doc_name = "RTI_Act_2005.pdf (Built-in Sample)"
+                    st.session_state.tab1_messages = []
+                    st.success("✅ Loaded & Indexed **Right to Information Act, 2005**!")
+
+        # Active Document Status
+        db_status = "📌 **Active Base**: Global Civic & Legal Database (Default)"
+        if st.session_state.tab1_vectorstore is not None:
+            db_status = f"📌 **Active Base**: Global Database + `{st.session_state.tab1_doc_name}`"
+        st.markdown(db_status)
+
         # Example prompt suggestions
         st.markdown("##### 💡 Suggested Questions:")
         sugg_cols = st.columns(3)
-        if sugg_cols[0].button("⏱️ What is the 48-hour life/liberty rule?"):
+        if sugg_cols[0].button("⏱️ 48-Hour Liberty Rule"):
             st.session_state.tab1_preset_query = "What is the time limit if the requested information concerns the life or liberty of a person?"
-        if sugg_cols[1].button("🚫 What are exemptions under Section 8?"):
+        if sugg_cols[1].button("🚫 Section 8 Exemptions"):
             st.session_state.tab1_preset_query = "What categories of information are exempt from disclosure under Section 8?"
-        if sugg_cols[2].button("📝 Do I need to give reasons for my request?"):
+        if sugg_cols[2].button("📝 Applicant Reasons"):
             st.session_state.tab1_preset_query = "Is an applicant required to give reasons for requesting information under the Act?"
 
-        # Display Chat History
+        st.markdown("---")
+        st.markdown("#### 💬 Conversation History")
+
+        # Display Chat History (Simple lightweight cards/bubbles)
         for msg in st.session_state.tab1_messages:
             with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
-                if "sources" in msg and msg["sources"]:
-                    with st.expander("🔍 View Retrieved Context & Sources"):
-                        for i, doc in enumerate(msg["sources"]):
-                            st.markdown(f"**Chunk {i+1}** (Source: `{doc.metadata.get('source')}`, Page {doc.metadata.get('page', 1)}):")
-                            st.caption(doc.page_content)
+                if msg["role"] == "user":
+                    st.markdown(msg["content"])
+                else:
+                    rights_summary = msg["content"].get("rights", "")
+                    if len(rights_summary) > 180:
+                        rights_summary = rights_summary[:180] + "..."
+                    st.markdown(f"**Rights summary:** {rights_summary}")
+                    st.caption("*(Detailed structured response is visible in the right dashboard panel)*")
 
         # Chat Input
         preset_val = st.session_state.pop("tab1_preset_query", None)
-        user_query = st.chat_input("Ask any question about this document...") or preset_val
+        user_query = st.chat_input("Ask any question about legal codes or uploaded files...")
+        if preset_val:
+            user_query = preset_val
 
         if user_query:
             # Append user message
             st.session_state.tab1_messages.append({"role": "user", "content": user_query})
-            with st.chat_message("user"):
-                st.markdown(user_query)
+            st.rerun()
 
-            # Query RAG
-            with st.chat_message("assistant"):
-                with st.spinner("Analyzing document clauses with Mistral 7B..."):
-                    try:
-                        result = rag_engine.query_rag_engine(
-                            vectorstore=st.session_state.tab1_vectorstore,
-                            question=user_query
-                        )
-                        st.markdown(result["answer"])
+    # RAG Execution when query is submitted
+    if st.session_state.tab1_messages and st.session_state.tab1_messages[-1]["role"] == "user":
+        last_query = st.session_state.tab1_messages[-1]["content"]
+        
+        # We need to query RAG and append assistant message
+        with col_left:
+            with st.spinner("Analyzing legal context and generating structured response..."):
+                try:
+                    result = rag_engine.query_rag_engine(
+                        global_vs=st.session_state.global_vectorstore,
+                        user_vs=st.session_state.tab1_vectorstore,
+                        question=last_query
+                    )
+                    st.session_state.tab1_messages.append({
+                        "role": "assistant",
+                        "content": result["answer"],
+                        "sources": result["source_documents"]
+                    })
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error querying model: {e}")
+                    # Remove user query if it failed to let user retry
+                    st.session_state.tab1_messages.pop()
+
+    # Determine latest assistant message to render on the right panel
+    latest_assistant_msg = None
+    for msg in reversed(st.session_state.tab1_messages):
+        if msg["role"] == "assistant":
+            latest_assistant_msg = msg
+            break
+
+    with col_right:
+        st.markdown("#### 📊 Civic & Legal Response Dashboard")
+        if latest_assistant_msg is not None:
+            # Extract content keys
+            content = latest_assistant_msg["content"]
+            
+            # Display Rights
+            st.markdown("### 📜 Applicable Civic & Legal Rights")
+            st.markdown(f'<div class="scheme-card" style="border-left-color: #38BDF8; margin-top: 10px;">'
+                        f'<div style="font-size: 1rem; color: #1E293B; line-height: 1.6;">{content.get("rights", "")}</div>'
+                        f'</div>', unsafe_allow_html=True)
+            
+            # Display Eligibility
+            st.markdown("### 🎯 Eligibility & Statutory Conditions")
+            elig_data = content.get("eligibility", [])
+            if elig_data and isinstance(elig_data, list):
+                rows_html = ""
+                for item in elig_data:
+                    cond = item.get("condition", "Verify requirement")
+                    status = item.get("status", "Information Needed")
+                    
+                    # Compute color styles
+                    badge_color = "#E2E8F0"
+                    text_color = "#475569"
+                    status_text = status
+                    
+                    status_lower = status.lower()
+                    if any(x in status_lower for x in ["satisfied", "yes", "pass", "eligible"]):
+                        badge_color = "#D1FAE5"
+                        text_color = "#065F46"
+                        status_text = "✓ " + status
+                    elif any(x in status_lower for x in ["needed", "unknown", "missing"]):
+                        badge_color = "#FEF3C7"
+                        text_color = "#92400E"
+                        status_text = "? " + status
+                    elif any(x in status_lower for x in ["required", "fail", "no", "alert", "warning"]):
+                        badge_color = "#FEE2E2"
+                        text_color = "#991B1B"
+                        status_text = "⚠ " + status
                         
-                        if result["source_documents"]:
-                            with st.expander("🔍 View Retrieved Context & Sources"):
-                                for i, doc in enumerate(result["source_documents"]):
-                                    st.markdown(f"**Chunk {i+1}** (Source: `{doc.metadata.get('source')}`, Page {doc.metadata.get('page', 1)}):")
-                                    st.caption(doc.page_content)
-
-                        st.session_state.tab1_messages.append({
-                            "role": "assistant",
-                            "content": result["answer"],
-                            "sources": result["source_documents"]
-                        })
-                    except Exception as e:
-                        st.error(f"Error querying model: {e}")
-    else:
-        st.info("👆 Please upload a PDF legal document above or click **'Load Sample RTI Act (2005)'** to start exploring.")
+                    rows_html += f"""
+                    <tr style="border-bottom: 1px solid #F1F5F9;">
+                        <td style="padding: 12px 14px; font-size: 0.92rem; color: #334155; font-weight: 500;">{cond}</td>
+                        <td style="padding: 12px 14px; text-align: right;">
+                            <span style="display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; background-color: {badge_color}; color: {text_color};">
+                                {status_text}
+                            </span>
+                        </td>
+                    </tr>
+                    """
+                
+                st.markdown(f"""
+                <div style="margin-top: 10px; margin-bottom: 20px;">
+                    <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                        <thead>
+                            <tr style="background: #F8FAFC; border-bottom: 1px solid #E2E8F0; text-align: left;">
+                                <th style="padding: 12px 14px; font-size: 0.85rem; font-weight: 700; color: #475569; letter-spacing: 0.05em; text-transform: uppercase;">STATUTORY REQUIREMENT</th>
+                                <th style="padding: 12px 14px; font-size: 0.85rem; font-weight: 700; color: #475569; letter-spacing: 0.05em; text-transform: uppercase; text-align: right;">STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows_html}
+                        </tbody>
+                    </table>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("No explicit eligibility conditions identified in the retrieved context.")
+                
+            # Display Benefits
+            st.markdown("### 🚀 Actionable Benefits & Next Steps")
+            st.markdown(f'<div class="scheme-card" style="border-left-color: #818CF8; margin-top: 10px;">'
+                        f'<div style="font-size: 1rem; color: #1E293B; line-height: 1.6;">{content.get("benefits", "")}</div>'
+                        f'</div>', unsafe_allow_html=True)
+            
+            # Display Risks & Limitations
+            st.markdown("### ⚠️ Critical Risks & Limitations")
+            st.markdown(f'<div class="warning-alert" style="margin-top: 10px; border-left: 5px solid #F59E0B;">'
+                        f'<b>Please Note:</b><br>{content.get("risks", "")}'
+                        f'</div>', unsafe_allow_html=True)
+            
+            # Display Sources
+            if latest_assistant_msg.get("sources"):
+                st.markdown("### 🔍 Verified Citations & References")
+                for i, doc in enumerate(latest_assistant_msg["sources"]):
+                    with st.expander(f"Reference {i+1}: {doc.metadata.get('source', 'Doc')} (Page {doc.metadata.get('page', 1)})"):
+                        st.caption(doc.page_content)
+        else:
+            # Welcome State
+            st.markdown("""
+            <div style="background: rgba(30, 41, 59, 0.03); border: 2px dashed #E2E8F0; padding: 40px 30px; border-radius: 16px; min-height: 480px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; margin-top: 20px;">
+                <div style="font-size: 3.5rem; margin-bottom: 20px;">⚖️</div>
+                <h3 style="color: #1E293B; font-weight: 800; font-size: 1.4rem; margin-bottom: 10px;">Civic & Legal Response Dashboard</h3>
+                <p style="color: #64748B; font-size: 0.95rem; max-width: 380px; line-height: 1.5;">
+                    Ask a civic or legal question in the chat panel, or upload a document to get a structured 4-part legal analysis here.
+                </p>
+                <div style="margin-top: 20px; font-size: 0.8rem; color: #94A3B8; font-weight: 500;">
+                    SAMA-VIDHANA indexes official acts like RTI 2005, Wages Code, Consumer Protection, Civil Rights, and more.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
 
 # ==============================================================================

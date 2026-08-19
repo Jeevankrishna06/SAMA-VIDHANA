@@ -547,3 +547,23 @@ The final design philosophy can be summarized as:
 ```
 
 > **The interface should be simple enough for anyone to use, while the system behind it handles the complexity.**
+
+---
+
+# 22. Flipping 3D Spatial Logo
+
+SAMA-VIDHANA uses a minimalist, spatial 3D logo located in the top sidebar of the user interface. The logo rotates through three official Indian languages representing the target users.
+
+### Visual Design Specifications
+
+* **Type**: Spatial 3D equilateral triangular prism.
+* **Animation**: Stepped horizontal 3D rotation (`rotateY`) that pauses on each language before smoothly flipping.
+* **Colors & Theme**:
+  * **English ("SAMA-VIDHANA")**: Cyan/Blue styling (`#38BDF8`).
+  * **Hindi ("सम-विधान")**: Indigo/Lavender styling (`#818CF8`).
+  * **Kannada ("ಸಮ-ವಿಧಾನ")**: Purple/Violet styling (`#C084FC`).
+* **Minimalist UI Rules**:
+  * Semi-transparent glassmorphism background (`rgba(30, 41, 59, 0.8)`).
+  * High-precision borders and subtle box-shadows.
+  * Simple sans-serif typography using the Plus Jakarta Sans font.
+

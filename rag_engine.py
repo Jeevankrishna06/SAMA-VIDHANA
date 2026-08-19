@@ -1,5 +1,7 @@
 import os
 import io
+import json
+import re
 import streamlit as st
 from dotenv import load_dotenv
 from pypdf import PdfReader
@@ -121,8 +123,45 @@ def build_faiss_index_from_texts(texts: list[str], metadatas: list[dict] = None)
     return FAISS.from_documents(docs, embeddings)
 
 
-# Strictly grounded system prompt constraint
-STRICT_RAG_PROMPT_TEMPLATE = """You are a civic legal assistant. Answer solely using the retrieved context. If the answer is not present in the context, clearly state that the provided information does not contain the answer.
+@st.cache_resource(show_spinner="Indexing Global Civic & Legal Knowledge Base...")
+def get_global_vectorstore() -> FAISS:
+    """
+    Read all PDF files in the 'data/' directory, chunk them, and index into FAISS.
+    """
+    data_dir = os.path.join(os.path.dirname(__file__), "data")
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+        return None
+
+    pdf_files = [f for f in os.listdir(data_dir) if f.endswith(".pdf")]
+    if not pdf_files:
+        return None
+
+    all_docs = []
+    for pdf_file in pdf_files:
+        path = os.path.join(data_dir, pdf_file)
+        try:
+            docs = extract_text_from_pdf(path)
+            all_docs.extend(docs)
+        except Exception as e:
+            print(f"Error reading {pdf_file}: {e}")
+
+    if not all_docs:
+        return None
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=600,
+        chunk_overlap=100,
+        separators=["\n\n", "\n", "Section ", "Article ", ". ", " ", ""],
+    )
+    chunks = text_splitter.split_documents(all_docs)
+    embeddings = get_embeddings()
+    vectorstore = FAISS.from_documents(chunks, embeddings)
+    return vectorstore
+
+
+# Structured prompt for generating Rights, Eligibility, Benefits, and Risks
+STRUCTURED_RAG_PROMPT_TEMPLATE = """You are SAMA-VIDHANA, a civic legal assistant. Answer solely using the retrieved context. If the answer is not present in the context, clearly state that the provided information does not contain the answer.
 
 Explain statutory clauses, legal procedures, or civic rights in simple, plain English that an ordinary citizen can easily understand, without omitting key legal caveats.
 
@@ -132,38 +171,108 @@ Retrieved Context:
 Citizen's Question:
 {question}
 
-Provide a structured, clear, and grounded answer:"""
+You MUST output your response in JSON format. The JSON object must contain the following keys:
+1. "rights": Explain the civic and legal rights that apply to the citizen's situation based on the context. Keep it in plain, readable English. (string/markdown)
+2. "eligibility": List the eligibility conditions or requirements mentioned in the context. For each condition, determine its status based on the user's question (e.g., "Satisfied", "Required", "Information Needed"). Format this as a JSON list of objects, each with "condition" and "status" keys.
+3. "benefits": Explain what benefits, remedies, or actions the citizen can take based on the context (e.g., how to apply, who to contact, next steps). (string/markdown)
+4. "risks": Explain what risks, limitations, exceptions, deadlines, or warnings the citizen should consider. (string/markdown)
+
+Ensure the output is valid JSON and nothing else. Do not wrap in markdown code blocks.
+"""
 
 
-def query_rag_engine(vectorstore: FAISS, question: str, k: int = 4) -> dict:
+def parse_json_response(response_text: str) -> dict:
     """
-    Retrieve top-k chunks from FAISS vectorstore and generate grounded answer with Mistral 7B.
+    Strips markdown code block markers and parses JSON reliably.
     """
-    retriever = vectorstore.as_retriever(search_kwargs={"k": k})
-    docs = retriever.invoke(question)
-
-    if not docs:
+    cleaned = response_text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z]*\n", "", cleaned)
+        cleaned = re.sub(r"\n```$", "", cleaned)
+        cleaned = cleaned.strip()
+    
+    try:
+        data = json.loads(cleaned)
+        # Ensure all required keys exist
+        for key in ["rights", "eligibility", "benefits", "risks"]:
+            if key not in data:
+                data[key] = ""
+        return data
+    except Exception as e:
+        print(f"JSON parsing error: {e}")
+        json_match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(0))
+                for key in ["rights", "eligibility", "benefits", "risks"]:
+                    if key not in data:
+                        data[key] = ""
+                return data
+            except Exception:
+                pass
+        
+        # Fallback structure
         return {
-            "answer": "The provided information does not contain the answer.",
+            "rights": response_text,
+            "eligibility": [{"condition": "Verify requirements in sources", "status": "Information Needed"}],
+            "benefits": "Please check reference materials for actionable steps.",
+            "risks": "Verify timelines and exceptions."
+        }
+
+
+def query_rag_engine(global_vs: FAISS, user_vs: FAISS, question: str, k: int = 4) -> dict:
+    """
+    Retrieve top-k chunks from global and/or user vectorstores,
+    and generate a structured answer with Mistral 7B.
+    """
+    retrieved_docs = []
+    
+    # Retrieve from global database
+    if global_vs is not None:
+        try:
+            global_retriever = global_vs.as_retriever(search_kwargs={"k": k})
+            global_docs = global_retriever.invoke(question)
+            retrieved_docs.extend(global_docs)
+        except Exception as e:
+            print(f"Error querying global vector store: {e}")
+        
+    # Retrieve from user uploaded PDF
+    if user_vs is not None:
+        try:
+            user_retriever = user_vs.as_retriever(search_kwargs={"k": k})
+            user_docs = user_retriever.invoke(question)
+            retrieved_docs.extend(user_docs)
+        except Exception as e:
+            print(f"Error querying user vector store: {e}")
+
+    if not retrieved_docs:
+        return {
+            "answer": {
+                "rights": "The provided information does not contain the answer.",
+                "eligibility": [],
+                "benefits": "No relevant documents found.",
+                "risks": "Please verify your question or upload a document."
+            },
             "source_documents": [],
         }
 
     formatted_context = "\n\n---\n\n".join(
         [
             f"[Source: {doc.metadata.get('source', 'Doc')} | Page: {doc.metadata.get('page', 'N/A')}]\n{doc.page_content}"
-            for doc in docs
+            for doc in retrieved_docs
         ]
     )
 
     llm = get_llm(temperature=0.1)
-    prompt = ChatPromptTemplate.from_template(STRICT_RAG_PROMPT_TEMPLATE)
+    prompt = ChatPromptTemplate.from_template(STRUCTURED_RAG_PROMPT_TEMPLATE)
     chain = prompt | llm | StrOutputParser()
 
     response = chain.invoke({"context": formatted_context, "question": question})
+    parsed_answer = parse_json_response(response)
 
     return {
-        "answer": response,
-        "source_documents": docs,
+        "answer": parsed_answer,
+        "source_documents": retrieved_docs,
     }
 
 
