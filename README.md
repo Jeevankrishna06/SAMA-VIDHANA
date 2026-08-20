@@ -4,7 +4,7 @@
 **SAMA-VIDHANA** is a premium, full-stack civic and legal empowerment application designed to make legal knowledge, statutory rights, welfare programs, and dispute resolution accessible to every citizen — presented in a sleek **dark-mode-only** interface.
 
 ---
-##Link
+Link
 
 Our Website = https://sama-vidhana.netlify.app
 
