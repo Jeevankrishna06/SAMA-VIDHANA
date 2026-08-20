@@ -254,7 +254,8 @@ async def get_matching_schemes(payload: dict):
     occupation = payload.get("occupation", "")
     
     if not query:
-        query = f"Welfare schemes for {occupation} in category {category} with income {income} and age {age}"
+        age_str = f" and age {age}" if age not in [None, ""] else ""
+        query = f"Welfare schemes for {occupation} in category {category} with income {income}{age_str}"
         
     try:
         schemes_vectorstore = schemes_data.get_schemes_vectorstore()

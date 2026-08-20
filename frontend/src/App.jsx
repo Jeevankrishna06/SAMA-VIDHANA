@@ -803,7 +803,7 @@ export default function App() {
                       Conditions
                     </div>
                     {activeResponse.answer.eligibility &&
-                    activeResponse.answer.eligibility.length > 0 ? (
+                      activeResponse.answer.eligibility.length > 0 ? (
                       <table className="eligibility-table">
                         <thead>
                           <tr>
@@ -1288,12 +1288,18 @@ export default function App() {
                     min="1"
                     max="110"
                     value={citizenProfile.age}
-                    onChange={(e) =>
-                      setCitizenProfile((prev) => ({
-                        ...prev,
-                        age: parseInt(e.target.value) || 35,
-                      }))
-                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "") {
+                        setCitizenProfile((prev) => ({ ...prev, age: "" }));
+                      } else {
+                        const parsed = parseInt(val);
+                        setCitizenProfile((prev) => ({
+                          ...prev,
+                          age: isNaN(parsed) ? "" : parsed,
+                        }));
+                      }
+                    }}
                   />
                 </div>
 
