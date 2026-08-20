@@ -25,19 +25,17 @@ GLOBAL_VS = None
 USER_VECTORSTORES = {}  # filename -> FAISS index
 UPLOAD_DIR = "./uploads"
 
-import logging
-import uuid
-
-# Configure secure minimal logging (without logging sensitive user PII)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("sama_vidhana")
-
-# Max upload limit (200 MB)
-MAX_UPLOAD_SIZE = 200 * 1024 * 1024
-
 def log_request_response(endpoint: str, payload: dict, response: dict):
-    """Safe audit logging without persisting unencrypted citizen PII or dispute text to disk."""
-    logger.info(f"Handled request to {endpoint}")
+    log_path = "../.log"
+    try:
+        import json
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"=== [{endpoint}] ===\n")
+            f.write(f"Input: {json.dumps(payload, ensure_ascii=False, indent=2)}\n")
+            f.write(f"Output: {json.dumps(response, ensure_ascii=False, indent=2)}\n")
+            f.write("-" * 40 + "\n\n")
+    except Exception as e:
+        print(f"Logging error: {e}")
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -48,9 +46,9 @@ import threading
 async def startup_event():
     def index_background():
         global GLOBAL_VS
-        logger.info("Starting global legal database indexing in background thread...")
+        print("FastAPI: Starting global legal database indexing in background thread...")
         GLOBAL_VS = rag_engine.get_global_vectorstore()
-        logger.info("Global legal database indexing completed successfully.")
+        print("FastAPI: Global legal database indexing completed successfully.")
         
     threading.Thread(target=index_background, daemon=True).start()
 
@@ -62,7 +60,7 @@ async def get_sources():
     data_dir = "./data"
     global_acts = []
     if os.path.exists(data_dir):
-        global_acts = [os.path.basename(f) for f in os.listdir(data_dir) if f.endswith(".pdf")]
+        global_acts = [f for f in os.listdir(data_dir) if f.endswith(".pdf")]
     
     uploaded_files = list(USER_VECTORSTORES.keys())
     
@@ -74,55 +72,31 @@ async def get_sources():
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):
     """
-    Accepts PDF with strict validation, extracts text, indexes to FAISS in memory.
+    Accepts PDF, extracts text, index to FAISS in memory, and cache.
     """
-    # 1. Sanitize filename to prevent path traversal
-    original_filename = os.path.basename(file.filename or "uploaded_document.pdf")
-    if not original_filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF documents (.pdf) are supported.")
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
         
-    # 2. Verify PDF Magic Bytes (%PDF-)
-    magic_header = await file.read(5)
-    await file.seek(0)
-    if magic_header != b"%PDF-":
-        raise HTTPException(status_code=400, detail="Invalid PDF header. File is not a valid PDF.")
-
-    # 3. Stream and enforce 200MB size limit
-    safe_disk_filename = f"{uuid.uuid4().hex}_{original_filename}"
-    file_path = os.path.join(UPLOAD_DIR, safe_disk_filename)
-    total_size = 0
-    
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
     try:
+        # Save file locally
         with open(file_path, "wb") as buffer:
-            while True:
-                chunk = await file.read(1024 * 1024)  # 1MB chunks
-                if not chunk:
-                    break
-                total_size += len(chunk)
-                if total_size > MAX_UPLOAD_SIZE:
-                    raise HTTPException(status_code=413, detail="File size exceeds maximum allowed limit (200MB).")
-                buffer.write(chunk)
+            shutil.copyfileobj(file.file, buffer)
             
-        # Parse and Index PDF safely
+        # Parse and Index PDF
         docs = rag_engine.extract_text_from_pdf(file_path)
         vs = rag_engine.build_faiss_index_from_documents(docs)
-        USER_VECTORSTORES[original_filename] = vs
+        USER_VECTORSTORES[file.filename] = vs
         
         return {
-            "filename": original_filename,
+            "filename": file.filename,
             "status": "success",
             "page_count": len(docs)
         }
-    except HTTPException:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        raise
     except Exception as e:
-        logger.error(f"Error processing uploaded PDF {original_filename}: {e}")
         if os.path.exists(file_path):
             os.remove(file_path)
-        raise HTTPException(status_code=500, detail="Failed to process and index document. Please ensure it is a valid PDF.")
-
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
 async def chat(payload: dict):
@@ -209,14 +183,13 @@ async def chat(payload: dict):
         log_request_response("/api/chat", payload, res)
         return res
         
-    # Compile context with explicit XML document tags
-    formatted_context = "\n\n".join(
+    # Compile context
+    formatted_context = "\n\n---\n\n".join(
         [
-            f"<document source='{doc.metadata.get('source', 'Doc')}' page='{doc.metadata.get('page', 'N/A')}'>\n{doc.page_content}\n</document>"
+            f"[Source: {doc.metadata.get('source', 'Doc')} | Page: {doc.metadata.get('page', 'N/A')}]\n{doc.page_content}"
             for doc in retrieved_docs
         ]
     )
-
     
     try:
         llm = rag_engine.get_llm(temperature=0.1)
@@ -242,8 +215,7 @@ async def chat(payload: dict):
         log_request_response("/api/chat", payload, res)
         return res
     except Exception as e:
-        logger.error(f"Error executing chat RAG pipeline: {e}")
-        raise HTTPException(status_code=500, detail="Failed to process question with AI legal assistant.")
+        raise HTTPException(status_code=500, detail=str(e))
 
 import schemes_data
 
@@ -259,8 +231,7 @@ async def generate_form(payload: dict):
         log_request_response("/api/generate-form", payload, res)
         return res
     except Exception as e:
-        logger.error(f"Error generating legal application: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate legal application.")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/triage")
 async def triage(payload: dict):
@@ -272,8 +243,7 @@ async def triage(payload: dict):
         log_request_response("/api/triage", payload, res)
         return res
     except Exception as e:
-        logger.error(f"Error generating legal triage: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate dispute triage report.")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/schemes")
 async def get_matching_schemes(payload: dict):
@@ -312,7 +282,5 @@ async def get_matching_schemes(payload: dict):
         log_request_response("/api/schemes", payload, res)
         return res
     except Exception as e:
-        logger.error(f"Error fetching matching schemes: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve welfare schemes.")
-
+        raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,13 +1,6 @@
 # Environment Variables & Secrets
 .env
-.env.*
 .streamlit/secrets.toml
-
-# User Uploads & Logs (PII & sensitive legal files)
-uploads/
-*.log
-.log
-log.txt
 
 # Python Virtual Environments & Caches
 .venv/
@@ -31,4 +24,3 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
-
