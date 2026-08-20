@@ -129,11 +129,18 @@ Application Procedure: {s['how_to_apply']}"""
     return documents
 
 
-@st.cache_resource(show_spinner="Indexing Welfare Schemes Vector Knowledgebase...")
+_SCHEMES_VECTORSTORE = None
+
+
 def get_schemes_vectorstore() -> FAISS:
     """
     Create and cache a FAISS vector store containing all government welfare schemes.
     """
+    global _SCHEMES_VECTORSTORE
+    if _SCHEMES_VECTORSTORE is not None:
+        return _SCHEMES_VECTORSTORE
+
     docs = get_schemes_as_documents()
     embeddings = get_embeddings()
-    return FAISS.from_documents(docs, embeddings)
+    _SCHEMES_VECTORSTORE = FAISS.from_documents(docs, embeddings)
+    return _SCHEMES_VECTORSTORE

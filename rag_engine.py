@@ -39,12 +39,18 @@ def get_mistral_api_key() -> str:
     return ""
 
 
-@st.cache_resource(show_spinner="Loading Sentence-Transformers Embeddings...")
+_GLOBAL_EMBEDDINGS = None
+_GLOBAL_VECTORSTORE = None
+
+
 def get_embeddings():
     """
     Load and cache sentence-transformers/all-MiniLM-L6-v2 embeddings.
     """
-    return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    global _GLOBAL_EMBEDDINGS
+    if _GLOBAL_EMBEDDINGS is None:
+        _GLOBAL_EMBEDDINGS = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    return _GLOBAL_EMBEDDINGS
 
 
 def get_llm(temperature: float = 0.2):
@@ -71,7 +77,7 @@ def extract_text_from_pdf(uploaded_file) -> list[Document]:
         reader = PdfReader(uploaded_file)
         file_name = os.path.basename(uploaded_file)
     else:
-        # Streamlit UploadedFile (BytesIO)
+        # Streamlit UploadedFile or file-like object (BytesIO)
         pdf_bytes = io.BytesIO(uploaded_file.read())
         reader = PdfReader(pdf_bytes)
         file_name = getattr(uploaded_file, "name", "uploaded_document.pdf")
@@ -123,9 +129,9 @@ def build_faiss_index_from_texts(texts: list[str], metadatas: list[dict] = None)
     return FAISS.from_documents(docs, embeddings)
 
 
-@st.cache_resource(show_spinner="Indexing Global Civic & Legal Knowledge Base...")
 def get_global_vectorstore() -> FAISS:
     """
+<<<<<<< Updated upstream
     Read all PDF files in the 'data/' directory, chunk them, and index into FAISS.
     Caches the FAISS index locally to speed up startup.
     """
@@ -144,8 +150,36 @@ def get_global_vectorstore() -> FAISS:
 
     # 2. Rebuild index if not found or failed to load
     data_dir = os.path.join(os.path.dirname(__file__), "data")
+=======
+    Load pre-built FAISS index from 'faiss_index/' if available,
+    otherwise read all PDF files in 'data/', chunk them, and build index.
+    """
+    global _GLOBAL_VECTORSTORE
+    if _GLOBAL_VECTORSTORE is not None:
+        return _GLOBAL_VECTORSTORE
+
+    base_dir = os.path.dirname(__file__)
+    faiss_dir = os.path.join(base_dir, "faiss_index")
+    embeddings = get_embeddings()
+
+    # 1. Try loading from saved faiss_index directory
+    if os.path.exists(faiss_dir) and (
+        os.path.exists(os.path.join(faiss_dir, "index.faiss")) or
+        os.path.exists(os.path.join(faiss_dir, "index.pkl"))
+    ):
+        try:
+            print(f"Loading pre-indexed FAISS knowledgebase from {faiss_dir}...")
+            _GLOBAL_VECTORSTORE = FAISS.load_local(faiss_dir, embeddings, allow_dangerous_deserialization=True)
+            print(f"Global FAISS index loaded with {_GLOBAL_VECTORSTORE.index.ntotal} vectors.")
+            return _GLOBAL_VECTORSTORE
+        except Exception as e:
+            print(f"Error loading local faiss_index: {e}. Falling back to parsing data/ PDFs...")
+
+    # 2. Build index from data/ PDFs
+    data_dir = os.path.join(base_dir, "data")
+>>>>>>> Stashed changes
     if not os.path.exists(data_dir):
-        os.makedirs(data_dir)
+        os.makedirs(data_dir, exist_ok=True)
         return None
 
     pdf_files = [f for f in os.listdir(data_dir) if f.endswith(".pdf")]
@@ -172,6 +206,7 @@ def get_global_vectorstore() -> FAISS:
     chunks = text_splitter.split_documents(all_docs)
     vectorstore = FAISS.from_documents(chunks, embeddings)
     
+<<<<<<< Updated upstream
     # Save the index locally for future runs
     try:
         print("FAISS: Saving global legal database to local cache...")
@@ -181,10 +216,20 @@ def get_global_vectorstore() -> FAISS:
         print(f"FAISS: Error saving to cache: {e}")
         
     return vectorstore
+=======
+    # Cache to disk for instant future boots
+    try:
+        vectorstore.save_local(faiss_dir)
+    except Exception as e:
+        print(f"Warning: Could not save FAISS index to disk: {e}")
+
+    _GLOBAL_VECTORSTORE = vectorstore
+    return _GLOBAL_VECTORSTORE
+>>>>>>> Stashed changes
 
 
 # Structured prompt for generating Rights, Eligibility, Benefits, and Risks
-STRUCTURED_RAG_PROMPT_TEMPLATE = """You are SAMA-VIDHANA, a civic legal assistant. Answer solely using the retrieved context. If the answer is not present in the context, clearly state that the provided information does not contain the answer.
+STRUCTURED_RAG_PROMPT_TEMPLATE = """You are SAMA-VIDHANA, a civic and legal empowerment assistant. Answer solely using the retrieved context. If the answer is not present in the context, clearly state that the provided information does not contain the answer.
 
 Explain statutory clauses, legal procedures, or civic rights in simple, plain English that an ordinary citizen can easily understand, without omitting key legal caveats.
 
@@ -194,14 +239,67 @@ Retrieved Context:
 Citizen's Question:
 {question}
 
+<<<<<<< Updated upstream
 You MUST output your response in JSON format. The JSON object must contain the following keys:
 1. "rights": A single string containing a markdown-formatted structured list of bullet points (each starting with a hyphen and a space: "- ") explaining the civic and legal rights that apply to the citizen's situation based on the context. Ensure this is a single JSON string value, NOT a JSON array of strings. Use bolding (e.g., "**Key concept**") where appropriate.
 2. "eligibility": List the eligibility conditions or requirements mentioned in the context. For each condition, determine its status based on the user's question (e.g., "Satisfied", "Required", "Information Needed"). Format this as a JSON list of objects, each with "condition" and "status" keys.
 3. "benefits": A single string containing a markdown-formatted structured list of bullet points (each starting with a hyphen and a space: "- ") explaining what benefits, remedies, or actions the citizen can take based on the context (e.g., how to apply, who to contact, next steps). Ensure this is a single JSON string value, NOT a JSON array of strings. Use bolding where appropriate.
 4. "risks": A single string containing a markdown-formatted structured list of bullet points (each starting with a hyphen and a space: "- ") explaining what risks, limitations, exceptions, deadlines, or warnings the citizen should consider. Ensure this is a single JSON string value, NOT a JSON array of strings. Use bolding where appropriate.
+=======
+You MUST output your response in JSON format. The JSON object must contain EXACTLY the following keys:
+1. "rights": Explain the civic and legal rights that apply to the citizen's situation based on the context. You MUST format this as a structured list of bullet points using hyphens (e.g., "- Right detail"). Use bolding (e.g., "**Key concept**") where appropriate. Keep it in plain, readable English. (string/markdown)
+2. "eligibility": List the eligibility conditions or requirements mentioned in the context. For each condition, determine its status based on the user's question (e.g., "Satisfied", "Required", "Information Needed"). Format this as a JSON list of objects, each with "condition" and "status" keys (e.g., [{{"condition": "Must be consumer", "status": "Satisfied"}}]).
+3. "benefits": Explain what benefits, remedies, or actions the citizen can take based on the context (e.g., how to apply, who to contact, next steps). You MUST format this as a structured list of bullet points using hyphens (e.g., "- Benefit detail"). Use bolding where appropriate. (string/markdown)
+4. "risks": Explain what risks, limitations, exceptions, deadlines, or warnings the citizen should consider. You MUST format this as a structured list of bullet points using hyphens (e.g., "- Risk detail"). Use bolding where appropriate. (string/markdown)
+>>>>>>> Stashed changes
 
 Ensure the output is valid JSON and nothing else. Do not wrap in markdown code blocks.
 """
+
+
+def _normalize_parsed_response(data: dict) -> dict:
+    """
+    Guarantees strict schema adherence and proper Markdown bullet formatting
+    for frontend consumption.
+    """
+    normalized = {}
+    for key in ["rights", "benefits", "risks"]:
+        val = data.get(key, "")
+        if isinstance(val, list):
+            items = []
+            for item in val:
+                if isinstance(item, dict):
+                    item_str = " - ".join(f"**{k}**: {v}" for k, v in item.items())
+                    items.append(f"- {item_str}")
+                else:
+                    item_s = str(item).strip()
+                    if not item_s.startswith("-") and not item_s.startswith("*"):
+                        item_s = f"- {item_s}"
+                    items.append(item_s)
+            normalized[key] = "\n".join(items)
+        elif isinstance(val, str):
+            normalized[key] = val
+        else:
+            normalized[key] = str(val or "")
+            
+    elig = data.get("eligibility", [])
+    if isinstance(elig, list):
+        norm_elig = []
+        for item in elig:
+            if isinstance(item, dict):
+                norm_elig.append({
+                    "condition": str(item.get("condition", item.get("requirement", "Requirement"))),
+                    "status": str(item.get("status", "Information Needed"))
+                })
+            elif isinstance(item, str):
+                norm_elig.append({"condition": item, "status": "Information Needed"})
+        normalized["eligibility"] = norm_elig
+    elif isinstance(elig, dict):
+        normalized["eligibility"] = [{"condition": k, "status": str(v)} for k, v in elig.items()]
+    else:
+        normalized["eligibility"] = [{"condition": str(elig or "Statutory eligibility criteria"), "status": "Information Needed"}]
+        
+    return normalized
 
 
 def parse_json_response(response_text: str) -> dict:
@@ -214,7 +312,19 @@ def parse_json_response(response_text: str) -> dict:
 
     cleaned = response_text.strip()
     
+<<<<<<< Updated upstream
     # 1. Try code block stripping
+=======
+    # 1. Try direct JSON load
+    try:
+        data = json.loads(cleaned, strict=False)
+        if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
+            return _normalize_parsed_response(data)
+    except Exception:
+        pass
+        
+    # 2. Try code block stripping
+>>>>>>> Stashed changes
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```[a-zA-Z]*\n", "", cleaned)
         cleaned = re.sub(r"\n```$", "", cleaned)
@@ -223,6 +333,7 @@ def parse_json_response(response_text: str) -> dict:
     # 2. Try direct JSON load on the cleaned string
     try:
         data = json.loads(cleaned, strict=False)
+<<<<<<< Updated upstream
         if isinstance(data, dict):
             # Check and normalize keys
             normalized = {}
@@ -244,6 +355,32 @@ def parse_json_response(response_text: str) -> dict:
             return normalized
     except Exception:
         pass
+=======
+        if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
+            return _normalize_parsed_response(data)
+    except Exception:
+        pass
+        
+    # 3. Extract JSON object using regex (greedy match from first { to last })
+    json_match = re.search(r"(\{.*\})", response_text, re.DOTALL)
+    if json_match:
+        json_candidate = json_match.group(1).strip()
+        try:
+            data = json.loads(json_candidate, strict=False)
+            if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
+                return _normalize_parsed_response(data)
+        except Exception:
+            pass
+            
+        # Try ast.literal_eval on the candidate
+        try:
+            import ast
+            data = ast.literal_eval(json_candidate)
+            if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
+                return _normalize_parsed_response(data)
+        except Exception:
+            pass
+>>>>>>> Stashed changes
 
     # 3. If direct load fails, use robust regex extraction for individual fields
     def extract_field_value(field_name, next_field_name, text):
@@ -316,6 +453,7 @@ def parse_json_response(response_text: str) -> dict:
             else:
                 normalized[key] = [] if key == "eligibility" else ""
         
+<<<<<<< Updated upstream
         # If we successfully got rights or benefits, return it
         if normalized["rights"] or normalized["benefits"]:
             return normalized
@@ -324,11 +462,61 @@ def parse_json_response(response_text: str) -> dict:
 
     # 4. Final fallback structure
     return {
+=======
+        # Extract rights
+        rights_match = re.search(r'"rights"\s*:\s*"(.*?)"\s*,\s*"eligibility"', response_text, re.DOTALL)
+        if rights_match:
+            parsed_data["rights"] = rights_match.group(1).strip()
+        else:
+            # Fallback match up to next key
+            rights_match = re.search(r'"rights"\s*:\s*"(.*?)"\s*,\s*"\w+"', response_text, re.DOTALL)
+            if rights_match:
+                parsed_data["rights"] = rights_match.group(1).strip()
+
+        # Extract eligibility list
+        elig_match = re.search(r'"eligibility"\s*:\s*(\[.*?\])\s*,\s*"benefits"', response_text, re.DOTALL)
+        if elig_match:
+            elig_str = elig_match.group(1).strip()
+            try:
+                parsed_data["eligibility"] = json.loads(elig_str, strict=False)
+            except Exception:
+                # Manual parse list items
+                items = []
+                for item_match in re.finditer(r'\{\s*"condition"\s*:\s*"(.*?)"\s*,\s*"status"\s*:\s*"(.*?)"\s*\}', elig_str, re.DOTALL):
+                    items.append({
+                        "condition": item_match.group(1).strip(),
+                        "status": item_match.group(2).strip()
+                    })
+                parsed_data["eligibility"] = items
+        
+        # Extract benefits
+        benefits_match = re.search(r'"benefits"\s*:\s*"(.*?)"\s*,\s*"risks"', response_text, re.DOTALL)
+        if benefits_match:
+            parsed_data["benefits"] = benefits_match.group(1).strip()
+
+        # Extract risks
+        risks_match = re.search(r'"risks"\s*:\s*"(.*?)"\s*\}\s*$', response_text, re.DOTALL)
+        if risks_match:
+            parsed_data["risks"] = risks_match.group(1).strip()
+        else:
+            risks_match = re.search(r'"risks"\s*:\s*"(.*?)"\s*[^"]*$', response_text, re.DOTALL)
+            if risks_match:
+                parsed_data["risks"] = risks_match.group(1).strip()
+
+        # Verify if we successfully extracted the core fields
+        if parsed_data.get("rights") or parsed_data.get("benefits"):
+            return _normalize_parsed_response(parsed_data)
+    except Exception as e:
+        print(f"Deep regex parser error: {e}")
+        
+    # 5. Final fallback structure
+    return _normalize_parsed_response({
+>>>>>>> Stashed changes
         "rights": response_text,
         "eligibility": [{"condition": "Verify requirements in sources", "status": "Information Needed"}],
-        "benefits": "Please check reference materials for actionable steps.",
-        "risks": "Verify timelines and exceptions."
-    }
+        "benefits": "- Please check reference materials for actionable steps.",
+        "risks": "- Verify timelines and exceptions."
+    })
 
 
 def query_rag_engine(global_vs: FAISS, user_vs: FAISS, question: str, k: int = 4) -> dict:

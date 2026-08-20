@@ -1,9 +1,13 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 import os
 import shutil
 import rag_engine
 from langchain_core.documents import Document
+
+# Load environment variables (.env)
+load_dotenv()
 
 app = FastAPI(title="SAMA-VIDHANA API")
 
