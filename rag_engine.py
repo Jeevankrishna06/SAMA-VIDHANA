@@ -528,13 +528,16 @@ Citizen's Issue Profile:
 - Available Supporting Documents: {documents}
 
 Produce a structured legal triage response with these exact sections:
-1. ⚖️ **Procedural Validity & Legal Grounding**: Identify relevant statutory acts, consumer rights, labor codes, or constitutional protections.
-2. 🏛️ **Designated Authority / Forum**: State the exact government department, ombudsman, tribunal, regulatory body, or court with jurisdiction (e.g., RERA, District Consumer Commission, Labor Officer, Lok Adalat, Police/Cyber Crime Portal).
-3. ⏱️ **Limitation Period & Urgency**: Mention statutory filing deadlines (e.g., 2 years under Consumer Protection Act, 30 days under RTI).
-4. 📋 **Mandatory Checklist of Evidentiary Documents**: What proofs the citizen must collect before filing.
-5. 🚀 **Step-by-Step Action Roadmap**: Chronological steps (e.g., Step 1: Formal Notice / Grievance, Step 2: Escalation to Regulatory Portal, Step 3: Formal Petition).
+1. ⚖️ **Procedural Validity & Legal Grounding**: Identify relevant statutory acts, consumer rights, labor codes, or constitutional protections. Use bullet points.
+2. 🏛️ **Designated Authority / Forum**: State the exact government department, ombudsman, tribunal, regulatory body, or court with jurisdiction. Use bullet points.
+3. ⏱️ **Limitation Period & Urgency**: Mention statutory filing deadlines and urgency level. Use bullet points.
+4. 📋 **Mandatory Checklist of Evidentiary Documents**: What proofs the citizen must collect before filing. Use bullet points.
+5. 🚀 **Step-by-Step Action Roadmap**: Chronological, sequential action steps the citizen should take. Use bullet points.
 
-Keep the language empowering, clear, precise, and practical for an ordinary citizen.
+Formatting Rules:
+- The entire output MUST be structured systematically and logically using clean Markdown bullet points.
+- Do NOT include any conversational filler, follow-up offers, sign-offs, or chat-like endings (e.g. do NOT say "Let me know if you need help...", "I can help you draft...", "You've got this", or ask any questions at the end).
+- Stop writing immediately after the final bullet point of the "Step-by-Step Action Roadmap". The response must end strictly with that bullet point.
 """
     prompt = ChatPromptTemplate.from_template(prompt_text)
     chain = prompt | llm | StrOutputParser()
