@@ -209,21 +209,21 @@ Citizen's Question:
 
 Instructions:
 1. Do NOT format your response as JSON. Do NOT output JSON objects, arrays, keys, or curly braces ({{}}).
-2. Structure your response in plain text Markdown using EXACTLY these four headers in order:
+2. Structure your response in plain text using EXACTLY these four sections in order:
 
-### Rights
-Provide a structured list of bullet points using hyphens (e.g., "- **Right Title**: Explanation of right"). Use bolding where appropriate. Keep it in plain, readable English.
+Rights:
+Provide a structured list of bullet points using standard hyphens (-) for each right (e.g., "- Right Title: Explanation of right"). Output plain text only without asterisks or bolding.
 
-### Eligibility
-Provide a structured list of statutory conditions or criteria mentioned in the context, along with status (Satisfied, Required, or Information Needed). Format each condition as a bullet point (e.g., "- Must be an Indian citizen (Satisfied)").
+Eligibility:
+Provide a structured list of statutory conditions or criteria mentioned in the context, along with status (Satisfied, Required, or Information Needed). Format each condition as a bullet point using standard hyphens (-) (e.g., "- Must be an Indian citizen (Satisfied)").
 
-### Benefits
-Provide a structured list of bullet points using hyphens explaining remedies, reliefs, schemes, compensations, or actions the citizen can take based on the context.
+Benefits:
+Provide a structured list of bullet points using standard hyphens (-) explaining remedies, reliefs, schemes, compensations, or actions the citizen can take based on the context.
 
-### Risks
-Provide a structured list of bullet points using hyphens explaining limitations, exceptions, statutory deadlines, risks, or caveats the citizen should consider.
+Risks:
+Provide a structured list of bullet points using standard hyphens (-) explaining limitations, exceptions, statutory deadlines, risks, or caveats the citizen should consider.
 
-Output ONLY the markdown headers and bullet points above. Absolutely do NOT output JSON.
+CRITICAL: Do not use any markdown formatting. Do not use asterisks, bolding, italics, or headers (e.g., ###). Output plain text only. You may use standard hyphens (-) for lists at maximum.
 """
 
 
@@ -326,8 +326,13 @@ def _normalize_parsed_response(data: dict) -> dict:
 
 def parse_json_response(response_text: str) -> dict:
     """
-    Parses model response preferring markdown section headers (### Rights, ### Eligibility, etc.),
-    with robust fallbacks for direct JSON, ast evaluation, and regex extractions.
+    Parses model response into structured dictionary:
+    - rights: str (bullet points or plain text)
+    - eligibility: list[dict] where each item is {"condition": str, "status": str}
+    - benefits: str (bullet points or plain text)
+    - risks: str (bullet points or plain text)
+    Supports plain text section headers (e.g. 'Rights:', 'Rights', '1. Rights'),
+    markdown headers ('### Rights', '**Rights**'), direct JSON, and resilient fallbacks.
     """
     import json
     import re
@@ -338,20 +343,25 @@ def parse_json_response(response_text: str) -> dict:
 
     cleaned = response_text.strip()
 
-    # 1. Primary Strategy: Check for Markdown Section Headers (### Rights, ### Eligibility, ### Benefits, ### Risks)
-    header_pattern = r'###\s*(Rights|Eligibility|Benefits|Risks)'
-    if re.search(header_pattern, cleaned, flags=re.IGNORECASE):
-        sections = re.split(header_pattern, cleaned, flags=re.IGNORECASE)
+    # 1. Primary Strategy: Match Section Headers (plain text or markdown: Rights, Eligibility, Benefits, Risks)
+    # Matches patterns like: '### Rights', 'Rights:', 'Rights', '1. Rights', '**Rights**', etc.
+    header_pattern = r'(?:^|\n)[ \t]*(?:#{1,6}[ \t]*|\*{1,2}|\d+[\.\)][ \t]*|\[)?[ \t]*(Rights|Eligibility|Benefits|Risks)[ \t]*[\*\]:]*[ \t]*(?:\n|(?=[ \t]+[^\n]))'
+    matches = list(re.finditer(header_pattern, cleaned, flags=re.IGNORECASE))
+    if matches:
         parsed_sections = {"rights": "", "eligibility": [], "benefits": "", "risks": ""}
-        for i in range(1, len(sections), 2):
-            header = sections[i].lower()
-            content = sections[i+1].strip()
+        for idx, match in enumerate(matches):
+            header = match.group(1).lower()
+            start_pos = match.end()
+            end_pos = matches[idx + 1].start() if idx + 1 < len(matches) else len(cleaned)
+            content = cleaned[start_pos:end_pos].strip()
+            # Clean optional leading colon or stray symbols on same line
+            content = re.sub(r'^[ \t]*:?[ \t]*', '', content).strip()
             if header in ["rights", "benefits", "risks"]:
                 parsed_sections[header] = content
             elif header == "eligibility":
-                lines = [line.strip().lstrip("-* ") for line in content.split("\n") if line.strip()]
+                lines = [line.strip().lstrip("-*• ") for line in content.split("\n") if line.strip()]
                 parsed_sections["eligibility"] = lines
-        
+
         if parsed_sections["rights"] or parsed_sections["eligibility"] or parsed_sections["benefits"] or parsed_sections["risks"]:
             return _normalize_parsed_response(parsed_sections)
 
@@ -502,12 +512,16 @@ Requirements:
 3. Insert appropriate statutory references (e.g., Section 6(1) of RTI Act 2005 for RTI requests; Consumer Protection Act 2019 for consumer claims).
 4. Clearly mark placeholders like [Date], [Fee Details / Postal Order No.] if not provided.
 5. Do not include markdown code block markers in the final plain text output. Return pure, clean text.
+
+CRITICAL: Do not use any markdown formatting. Do not use asterisks, bolding, italics, or headers (e.g., ###). Output plain text only. You may use standard hyphens (-) for lists at maximum.
+CRITICAL: Do not wrap your output in backticks or markdown code blocks (```). Return raw text only.
 """
     prompt = ChatPromptTemplate.from_template(prompt_text)
     chain = prompt | llm | StrOutputParser()
 
     formatted_details = "\n".join([f"- {k}: {v}" for k, v in details.items() if v])
-    return chain.invoke({"form_type": form_type, "details": formatted_details})
+    raw_output = chain.invoke({"form_type": form_type, "details": formatted_details})
+    return raw_output.replace("```markdown", "").replace("```", "").strip()
 
 
 def triage_citizen_dispute(dispute_info: dict) -> str:
@@ -538,11 +552,12 @@ Formatting Rules:
 - The entire output MUST be structured systematically and logically using clean Markdown bullet points.
 - Do NOT include any conversational filler, follow-up offers, sign-offs, or chat-like endings (e.g. do NOT say "Let me know if you need help...", "I can help you draft...", "You've got this", or ask any questions at the end).
 - Stop writing immediately after the final bullet point of the "Step-by-Step Action Roadmap". The response must end strictly with that bullet point.
+- CRITICAL: Do not wrap your output in backticks or markdown code blocks (```). Return raw text only.
 """
     prompt = ChatPromptTemplate.from_template(prompt_text)
     chain = prompt | llm | StrOutputParser()
 
-    return chain.invoke({
+    raw_output = chain.invoke({
         "category": dispute_info.get("category", "General"),
         "jurisdiction": dispute_info.get("jurisdiction", "India"),
         "description": dispute_info.get("description", "Not provided"),
@@ -550,3 +565,4 @@ Formatting Rules:
         "status": dispute_info.get("status", "Initial stage"),
         "documents": dispute_info.get("documents", "None mentioned"),
     })
+    return raw_output.replace("```markdown", "").replace("```", "").strip()

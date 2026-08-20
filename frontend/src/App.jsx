@@ -19,8 +19,6 @@ import {
   Check,
   Compass,
   Search,
-  Sun,
-  Moon,
 } from "lucide-react";
 
 const disputeCategories = [
@@ -123,20 +121,6 @@ const parseMarkdownText = (text) => {
 };
 
 export default function App() {
-  // State for theme: light or dark
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem("theme") || "dark";
-  });
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("theme", theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-  };
-
   // State for global tab navigation
   const [activeTab, setActiveTab] = useState("law-explainer"); // law-explainer, form-filler, schemes, triage
 
@@ -528,26 +512,6 @@ export default function App() {
         </div>
 
         <div className="header-badges">
-          <button
-            onClick={toggleTheme}
-            className="theme-toggle-btn"
-            title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            style={{
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--text-color)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "8px",
-              borderRadius: "50%",
-              marginRight: "8px",
-              transition: "all 0.2s ease"
-            }}
-          >
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
           <span className="badge-pill">open-mistral-7b</span>
           <span className="badge-pill">Grounded RAG</span>
         </div>
@@ -1194,12 +1158,9 @@ export default function App() {
                     </h2>
                   </div>
 
-                  <div className="paper-letter-container">
-                    <div className="paper-sheet">
-                      <div className="paper-red-margin" />
-                      <pre className="paper-content">{generatedForm}</pre>
-                    </div>
-                  </div>
+                  <pre className="plaintext-pre-output h-full w-full overflow-y-auto">
+                    {generatedForm}
+                  </pre>
 
                   <div className="action-bar">
                     <button
@@ -1331,9 +1292,10 @@ export default function App() {
                   <input
                     type="number"
                     className="form-input"
-                    min="1"
+                    min="0"
                     max="110"
                     value={citizenProfile.age}
+                    onKeyDown={(e) => e.preventDefault()}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "") {
@@ -1774,11 +1736,11 @@ export default function App() {
                         return (
                           <li
                             key={idx}
-                            style={{ marginLeft: 15, listStyleType: "disc" }}
+                            style={{ marginLeft: 15, listStyleType: "disc", color: "#f3f4f6" }}
                           >
                             {parts.map((part, pIdx) =>
                               pIdx % 2 === 1 ? (
-                                <strong key={pIdx}>{part}</strong>
+                                <strong key={pIdx} style={{ color: "#ffffff" }}>{part}</strong>
                               ) : (
                                 part
                               ),
@@ -1788,10 +1750,10 @@ export default function App() {
                       } else if (line.trim()) {
                         const parts = line.split("**");
                         return (
-                          <p key={idx}>
+                          <p key={idx} style={{ color: "#f3f4f6" }}>
                             {parts.map((part, pIdx) =>
                               pIdx % 2 === 1 ? (
-                                <strong key={pIdx}>{part}</strong>
+                                <strong key={pIdx} style={{ color: "#ffffff" }}>{part}</strong>
                               ) : (
                                 part
                               ),
