@@ -192,7 +192,7 @@ export default function App() {
 
   const fetchSources = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/sources");
+      const res = await fetch("/api/sources");
       if (res.ok) {
         const data = await res.json();
         setSources(data);
@@ -211,7 +211,7 @@ export default function App() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("http://localhost:8000/api/upload", {
+      const res = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
@@ -251,7 +251,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/api/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -331,7 +331,7 @@ export default function App() {
     }
     setFormGenerating(true);
     try {
-      const res = await fetch("http://localhost:8000/api/generate-form", {
+      const res = await fetch("/api/generate-form", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -365,7 +365,7 @@ export default function App() {
   const handleFindSchemes = async () => {
     setSchemesLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/schemes", {
+      const res = await fetch("/api/schemes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -404,7 +404,7 @@ export default function App() {
     }
     setTriageLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/triage", {
+      const res = await fetch("/api/triage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

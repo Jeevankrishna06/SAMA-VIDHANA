@@ -21,6 +21,18 @@ GLOBAL_VS = None
 USER_VECTORSTORES = {}  # filename -> FAISS index
 UPLOAD_DIR = "./uploads"
 
+def log_request_response(endpoint: str, payload: dict, response: dict):
+    log_path = "../.log"
+    try:
+        import json
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"=== [{endpoint}] ===\n")
+            f.write(f"Input: {json.dumps(payload, ensure_ascii=False, indent=2)}\n")
+            f.write(f"Output: {json.dumps(response, ensure_ascii=False, indent=2)}\n")
+            f.write("-" * 40 + "\n\n")
+    except Exception as e:
+        print(f"Logging error: {e}")
+
 # Ensure upload directory exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -126,7 +138,7 @@ async def chat(payload: dict):
             if os.path.exists(data_dir):
                 global_acts = [f for f in os.listdir(data_dir) if f.endswith(".pdf")]
             if global_acts:
-                return {
+                res = {
                     "answer": {
                         "rights": "SAMA-VIDHANA global legal database is currently indexing its documents in the background. Please wait about 15-20 seconds and try your question again.",
                         "eligibility": [{"condition": "Database indexing in progress", "status": "Information Needed"}],
@@ -135,6 +147,8 @@ async def chat(payload: dict):
                     },
                     "sources": []
                 }
+                log_request_response("/api/chat", payload, res)
+                return res
         else:
             try:
                 global_retriever = GLOBAL_VS.as_retriever(search_kwargs={"k": 4})
@@ -153,7 +167,7 @@ async def chat(payload: dict):
             print(f"Error querying user VS: {e}")
             
     if not retrieved_docs:
-        return {
+        res = {
             "answer": {
                 "rights": "The provided information does not contain the answer.",
                 "eligibility": [],
@@ -162,6 +176,8 @@ async def chat(payload: dict):
             },
             "sources": []
         }
+        log_request_response("/api/chat", payload, res)
+        return res
         
     # Compile context
     formatted_context = "\n\n---\n\n".join(
@@ -188,10 +204,12 @@ async def chat(payload: dict):
                 "content": doc.page_content
             })
             
-        return {
+        res = {
             "answer": parsed_answer,
             "sources": sources_list
         }
+        log_request_response("/api/chat", payload, res)
+        return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -205,7 +223,9 @@ async def generate_form(payload: dict):
         raise HTTPException(status_code=400, detail="Form type and details are required.")
     try:
         generated_text = rag_engine.generate_plaintext_application(form_type, details)
-        return {"generated_text": generated_text}
+        res = {"generated_text": generated_text}
+        log_request_response("/api/generate-form", payload, res)
+        return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -215,7 +235,9 @@ async def triage(payload: dict):
         raise HTTPException(status_code=400, detail="Incident narrative description is required.")
     try:
         triage_report = rag_engine.triage_citizen_dispute(payload)
-        return {"triage_report": triage_report}
+        res = {"triage_report": triage_report}
+        log_request_response("/api/triage", payload, res)
+        return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -251,7 +273,9 @@ async def get_matching_schemes(payload: dict):
                 "content": doc.page_content
             })
             
-        return {"schemes": schemes_list}
+        res = {"schemes": schemes_list}
+        log_request_response("/api/schemes", payload, res)
+        return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
