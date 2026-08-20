@@ -123,5 +123,19 @@ The client dashboard opens at `http://localhost:5173`.
 
 ---
 
+## 🔐 Security & Secret Management
+
+> ⚠️ **CRITICAL SECURITY WARNING: PREVIOUSLY COMMITTED SECRETS IN GIT HISTORY**  
+> If an API key or credential was committed in past Git commits (for example, early repository commits before `.env` sanitization), **that key remains permanently readable in Git commit history**.  
+> **Action Required**: If you have cloned or deployed this repository, immediately **revoke and rotate** any real API keys in the [Mistral AI Console](https://console.mistral.ai/) or respective service dashboards.
+
+### Security Best Practices Implemented:
+- **Server-Side Only Secret Access**: `MISTRAL_API_KEY` is loaded exclusively on the FastAPI/Python backend using `python-dotenv` and `os.getenv()`. It is never exported to frontend bundles or exposed via client-facing endpoints.
+- **No Client Prefix Exposure**: No sensitive credentials use `VITE_`, `REACT_APP_`, or `NEXT_PUBLIC_` prefixes.
+- **Git Exclusions**: Both the root `.gitignore` and `frontend/.gitignore` strictly ignore all `.env`, `.env.*`, `.local`, `log.txt`, `.log`, and cached artifacts.
+- **Template Safety**: `.env.example` contains only non-sensitive placeholder definitions.
+
+---
+
 ## ⚖️ Disclaimer
 *SAMA-VIDHANA is an AI-powered civic empowerment tool designed for informational and procedural guidance. It does not constitute formal legal representation or an attorney-client relationship. For formal litigation, consult an advocate registered with the State Bar Council.*

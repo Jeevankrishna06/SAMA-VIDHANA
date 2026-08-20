@@ -1,5 +1,7 @@
 # Environment Variables & Secrets
 .env
+.env.*
+!.env.example
 .streamlit/secrets.toml
 
 # Python Virtual Environments & Caches
@@ -18,6 +20,15 @@ dist/
 
 # Vector Stores & Cache
 .cache/
+faiss_index/
+
+# Logs
+*.log
+log.txt
+.log
+
+# Uploaded User Documents
+uploads/
 
 # OS & Editor
 .DS_Store
