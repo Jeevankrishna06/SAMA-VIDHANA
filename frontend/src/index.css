@@ -26,6 +26,15 @@
   --chat-bubble-assistant-text: #cbd5e1;
   --table-th-border: rgba(255, 255, 255, 0.08);
   --table-td-border: rgba(255, 255, 255, 0.04);
+  --suggestion-chip-bg: rgba(30, 41, 59, 0.3);
+  --suggestion-chip-border: rgba(255, 255, 255, 0.08);
+  --suggestion-chip-text: #94a3b8;
+  --badge-pill-bg: rgba(56, 189, 248, 0.1);
+  --badge-pill-border: rgba(56, 189, 248, 0.2);
+  --badge-pill-text: #38bdf8;
+  --badge-pill-2-bg: rgba(129, 140, 248, 0.1);
+  --badge-pill-2-border: rgba(129, 140, 248, 0.2);
+  --badge-pill-2-text: #818cf8;
 }
 
 [data-theme="light"] {
@@ -51,6 +60,15 @@
   --chat-bubble-assistant-text: #191414;
   --table-th-border: rgba(0, 0, 0, 0.08);
   --table-td-border: rgba(0, 0, 0, 0.04);
+  --suggestion-chip-bg: #e2e8f0;
+  --suggestion-chip-border: rgba(0, 0, 0, 0.08);
+  --suggestion-chip-text: #374151; /* Dark grey for clear contrast */
+  --badge-pill-bg: rgba(2, 132, 199, 0.08);
+  --badge-pill-border: rgba(2, 132, 199, 0.2);
+  --badge-pill-text: #0284c7;
+  --badge-pill-2-bg: rgba(79, 70, 229, 0.08);
+  --badge-pill-2-border: rgba(79, 70, 229, 0.2);
+  --badge-pill-2-text: #4f46e5;
 }
 
 [data-theme="dark"] {
@@ -59,23 +77,32 @@
   --bg-color-radial-end: #191414;
   --text-color: #ffffff; /* Specified White text */
   --text-muted: #a1a1aa;
-  --panel-bg: rgba(25, 20, 20, 0.8);
+  --panel-bg: #191414;
   --right-panel-bg: #191414;
-  --header-bg: rgba(25, 20, 20, 0.9);
+  --header-bg: #191414;
   --border-color: rgba(255, 255, 255, 0.08);
-  --card-bg: rgba(40, 40, 40, 0.35);
+  --card-bg: rgba(25, 20, 20, 0.6); /* Slightly lighter for contrast/depth */
   --card-border: rgba(255, 255, 255, 0.06);
-  --input-bg: rgba(25, 20, 20, 0.6);
-  --input-border: rgba(255, 255, 255, 0.1);
+  --input-bg: rgba(25, 20, 20, 0.9);
+  --input-border: rgba(255, 255, 255, 0.12);
   --placeholder-color: #71717a;
   --tab-nav-bg: rgba(255, 255, 255, 0.04);
   --chat-bubble-user-bg: #38bdf8;
   --chat-bubble-user-text: #0f172a;
-  --chat-bubble-assistant-bg: rgba(255, 255, 255, 0.02);
+  --chat-bubble-assistant-bg: rgba(25, 20, 20, 0.75);
   --chat-bubble-assistant-border: rgba(255, 255, 255, 0.06);
   --chat-bubble-assistant-text: #e2e8f0;
   --table-th-border: rgba(255, 255, 255, 0.08);
   --table-td-border: rgba(255, 255, 255, 0.04);
+  --suggestion-chip-bg: rgba(255, 255, 255, 0.03);
+  --suggestion-chip-border: rgba(255, 255, 255, 0.06);
+  --suggestion-chip-text: #a1a1aa;
+  --badge-pill-bg: rgba(56, 189, 248, 0.15);
+  --badge-pill-border: rgba(56, 189, 248, 0.25);
+  --badge-pill-text: #38bdf8;
+  --badge-pill-2-bg: rgba(129, 140, 248, 0.15);
+  --badge-pill-2-border: rgba(129, 140, 248, 0.25);
+  --badge-pill-2-text: #818cf8;
 }
 
 body {
@@ -325,13 +352,13 @@ body {
 .suggestion-chip {
   padding: 6px 12px;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(30, 41, 59, 0.3);
+  border: 1px solid var(--suggestion-chip-border);
+  background: var(--suggestion-chip-bg);
   font-size: 0.76rem;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--suggestion-chip-text);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease, background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .suggestion-chip:hover {
@@ -403,29 +430,61 @@ body {
   cursor: not-allowed;
 }
 
-/* 3D Flipping Logo Styles */
+/* 3D Rotating Prism Logo Styles */
 .logo-container {
-  perspective: 1000px;
+  perspective: 1200px;
   width: 100%;
   display: flex;
   justify-content: center;
-  margin-bottom: 25px;
+  margin-top: 15px;
+  margin-bottom: 35px;
+  position: relative;
+  overflow: visible;
 }
 
 .logo-3d-scene {
-  width: 280px;
-  height: 60px;
-  perspective: 1000px;
+  width: 250px; /* Visibility scale */
+  height: 200px;
+  perspective: 1200px;
+  position: relative;
+  transform-style: preserve-3d;
+  transform: rotateX(12deg) rotateY(-5deg); /* Tilted perspective for true 3D look! */
 }
+
+/* Glowing Background Aura behind the Prism */
+.logo-glow-aura {
+  position: absolute;
+  left: 5%;
+  top: 5%;
+  width: 90%;
+  height: 90%;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.4) 0%, rgba(192, 132, 252, 0.25) 50%, transparent 100%);
+  filter: blur(28px);
+  z-index: 1;
+  pointer-events: none;
+  animation: pulseGlow 4s infinite ease-in-out;
+}
+
+[data-theme="light"] .logo-glow-aura {
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.22) 0%, rgba(168, 85, 247, 0.12) 60%, transparent 100%);
+  filter: blur(24px);
+}
+
+[data-theme="dark"] .logo-glow-aura {
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.08) 0%, transparent 70%);
+  filter: blur(32px);
+  opacity: 0.6;
+}
+
+/* Orbiting Accent Rings removed */
 
 .logo-3d-prism {
   width: 100%;
   height: 100%;
   position: relative;
   transform-style: preserve-3d;
-  transform: translateZ(-81px);
-  /* w / (2*tan(60)) = 280 / 3.464 = 80.8px */
-  animation: rotatePrismY 12s infinite ease-in-out;
+  transform: translateZ(-72px);
+  animation: rotatePrismY 15s infinite cubic-bezier(0.68, -0.6, 0.32, 1.6);
 }
 
 .logo-face {
@@ -436,58 +495,113 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-size: 1.2rem;
-  letter-spacing: 0.5px;
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px solid var(--border-color);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
   background: var(--card-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.1);
   box-sizing: border-box;
   color: var(--text-color);
-  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .logo-face {
+  background: #1C1C1C; /* Soft black palette */
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 .logo-face-en {
-  color: #38bdf8;
-  border-color: rgba(56, 189, 248, 0.3);
-  transform: rotateY(0deg) translateZ(81px);
+  transform: rotateY(0deg) translateZ(72px);
 }
 
 .logo-face-hi {
-  color: #818cf8;
-  border-color: rgba(129, 140, 248, 0.3);
-  transform: rotateY(120deg) translateZ(81px);
+  transform: rotateY(120deg) translateZ(72px);
 }
 
 .logo-face-kn {
-  color: #c084fc;
-  border-color: rgba(192, 132, 252, 0.3);
-  transform: rotateY(240deg) translateZ(81px);
+  transform: rotateY(240deg) translateZ(72px);
+}
+
+/* Image Icon styling on 3D faces - full size */
+.logo-face-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: filter 0.3s ease, mix-blend-mode 0.3s ease;
+}
+
+[data-theme="dark"] .logo-face-img {
+  filter: invert(1);
+  mix-blend-mode: screen; /* Blends the black background of the inverted image into the face background color */
+}
+
+/* Logo Shimmer Text Style */
+.logo-text {
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: 0.8px;
+  background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc, #38bdf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+  animation: textShimmer 5s infinite linear;
+  background-size: 200% auto;
+}
+
+/* Animations */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes orbitSpin1 {
+  0% {
+    transform: rotateX(75deg) rotateY(15deg) rotateZ(0deg);
+  }
+  100% {
+    transform: rotateX(75deg) rotateY(15deg) rotateZ(360deg);
+  }
+}
+
+@keyframes orbitSpin2 {
+  0% {
+    transform: rotateX(70deg) rotateY(-20deg) rotateZ(0deg);
+  }
+  100% {
+    transform: rotateX(70deg) rotateY(-20deg) rotateZ(360deg);
+  }
+}
+
+@keyframes textShimmer {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
 }
 
 @keyframes rotatePrismY {
-
-  0%,
-  25% {
-    transform: translateZ(-81px) rotateY(0deg);
+  0%, 25% {
+    transform: translateZ(-72px) rotateY(0deg);
   }
-
-  30%,
-  55% {
-    transform: translateZ(-81px) rotateY(-120deg);
+  30%, 55% {
+    transform: translateZ(-72px) rotateY(-120deg);
   }
-
-  60%,
-  85% {
-    transform: translateZ(-81px) rotateY(-240deg);
+  60%, 85% {
+    transform: translateZ(-72px) rotateY(-240deg);
   }
-
-  90%,
-  100% {
-    transform: translateZ(-81px) rotateY(-360deg);
+  90%, 100% {
+    transform: translateZ(-72px) rotateY(-360deg);
   }
 }
 
@@ -678,14 +792,17 @@ body {
   flex-direction: column;
 }
 
-.header-title {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+.header-logo {
+  height: 68px; /* High visibility size */
+  width: auto;
+  object-fit: contain;
+  transition: filter 0.3s ease, mix-blend-mode 0.3s ease;
+  align-self: flex-start;
+}
+
+[data-theme="dark"] .header-logo {
+  filter: invert(1);
+  mix-blend-mode: screen;
 }
 
 .header-subtitle {
@@ -709,15 +826,17 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: rgba(56, 189, 248, 0.1);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  background: var(--badge-pill-bg);
+  color: var(--badge-pill-text);
+  border: 1px solid var(--badge-pill-border);
+  transition: all 0.3s ease;
 }
 
 .badge-pill:nth-child(2) {
-  background: rgba(129, 140, 248, 0.1);
-  color: #818cf8;
-  border-color: rgba(129, 140, 248, 0.2);
+  background: var(--badge-pill-2-bg);
+  color: var(--badge-pill-2-text);
+  border-color: var(--badge-pill-2-border);
+  transition: all 0.3s ease;
 }
 
 .tabs-navigation {
@@ -787,15 +906,17 @@ body {
 .form-title {
   font-size: 1.15rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-color);
   margin: 0 0 6px 0;
+  transition: color 0.3s ease;
 }
 
 .form-subtitle {
   font-size: 0.85rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin: 0;
   line-height: 1.4;
+  transition: color 0.3s ease;
 }
 
 .form-group {
@@ -809,7 +930,8 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #94a3b8;
+  color: var(--text-muted);
+  transition: color 0.3s ease;
 }
 
 .form-input,
@@ -833,6 +955,13 @@ body {
 .form-textarea:focus {
   border-color: #38bdf8;
   box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder,
+.chat-input::placeholder {
+  color: var(--placeholder-color);
+  opacity: 0.8;
 }
 
 .form-textarea {
@@ -1025,18 +1154,19 @@ body {
 
 .scheme-card-item {
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(30, 41, 59, 0.2);
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
   padding: 20px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   border-left: 4px solid #818cf8;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease, background 0.3s ease, border-color 0.3s ease;
 }
 
 .scheme-card-item:hover {
   transform: translateY(-1px);
-  border-color: rgba(129, 140, 248, 0.3);
-  background: rgba(30, 41, 59, 0.3);
+  border-color: rgba(129, 140, 248, 0.5);
+  background: var(--card-bg);
+  opacity: 0.95;
 }
 
 .scheme-card-header {
@@ -1046,21 +1176,24 @@ body {
 .scheme-card-title {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-color);
   margin: 0 0 4px 0;
+  transition: color 0.3s ease;
 }
 
 .scheme-card-meta {
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-weight: 500;
+  transition: color 0.3s ease;
 }
 
 .scheme-card-body {
   font-size: 0.88rem;
   line-height: 1.5;
-  color: #cbd5e1;
+  color: var(--text-color);
   white-space: pre-line;
+  transition: color 0.3s ease;
 }
 
 /* Triage Roadmap Content Display */
@@ -1073,29 +1206,32 @@ body {
 
 .triage-roadmap-content {
   flex: 1;
-  background: rgba(30, 41, 59, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: 12px;
   padding: 24px;
   overflow-y: auto;
   font-size: 0.92rem;
   line-height: 1.65;
-  color: #cbd5e1;
+  color: var(--text-color);
+  transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .triage-roadmap-content h1,
 .triage-roadmap-content h2,
 .triage-roadmap-content h3 {
-  color: #f8fafc;
+  color: var(--text-color);
   font-weight: 700;
   margin-top: 20px;
   margin-bottom: 10px;
+  transition: color 0.3s ease;
 }
 
 .triage-roadmap-content h3 {
   font-size: 1.05rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 6px;
+  transition: border-color 0.3s ease;
 }
 
 .triage-roadmap-content ul,

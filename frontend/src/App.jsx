@@ -463,14 +463,23 @@ export default function App() {
     setTimeout(() => setCopiedState(false), 2000);
   };
 
-  // Render Spatial 3D Logo (reusable)
   const render3DLogo = () => (
     <div className="logo-container">
       <div className="logo-3d-scene">
+        {/* Glowing Background Aura */}
+        <div className="logo-glow-aura"></div>
+        
+        {/* Central 3D Prism */}
         <div className="logo-3d-prism">
-          <div className="logo-face logo-face-en">🏛️ SAMA-VIDHANA</div>
-          <div className="logo-face logo-face-hi">⚖️ सम-विधान</div>
-          <div className="logo-face logo-face-kn">🏛️ ಸಮ-ವಿಧಾನ</div>
+          <div className="logo-face logo-face-en">
+            <img src="/sama-vidhana.png" alt="SAMA-VIDHANA Logo" className="logo-face-img" />
+          </div>
+          <div className="logo-face logo-face-hi">
+            <img src="/sama-vidhana-hindi.jpg" alt="SAMA-VIDHANA Hindi Logo" className="logo-face-img" />
+          </div>
+          <div className="logo-face logo-face-kn">
+            <img src="/sama-vidhana-kannada.jpg" alt="SAMA-VIDHANA Kannada Logo" className="logo-face-img" />
+          </div>
         </div>
       </div>
     </div>
@@ -483,7 +492,7 @@ export default function App() {
       {/* GLOBAL HEADER BAR */}
       <header className="app-header">
         <div className="header-info">
-          <h1 className="header-title">🏛️ SAMA-VIDHANA</h1>
+          <img src="/sama-vidhana.png" alt="SAMA-VIDHANA Logo" className="header-logo" />
           <p className="header-subtitle">
             Civic & Legal Empowerment AI Assistant • Powered by Mistral 7B &
             FAISS RAG
@@ -647,15 +656,15 @@ export default function App() {
                     <div className="chat-welcome">
                       <HelpCircle
                         size={40}
-                        style={{ color: "#475569", marginBottom: 15 }}
+                        style={{ color: "var(--text-muted)", marginBottom: 15 }}
                       />
-                      <h4 style={{ color: "#cbd5e1", margin: "0 0 8px 0" }}>
+                      <h4 style={{ color: "var(--text-color)", margin: "0 0 8px 0" }}>
                         What is SAMA-VIDHANA?
                       </h4>
                       <p
                         style={{
                           fontSize: "0.85rem",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           margin: 0,
                           maxWidth: "300px",
                           lineHeight: 1.5,
@@ -810,7 +819,7 @@ export default function App() {
                         margin: 0,
                         fontSize: "1.35rem",
                         fontWeight: 800,
-                        color: "#f8fafc",
+                        color: "var(--text-color)",
                       }}
                     >
                       Statutory Civic Analysis
@@ -966,7 +975,7 @@ export default function App() {
                   <div style={{ fontSize: "4rem", marginBottom: 20 }}>⚖️</div>
                   <h3
                     style={{
-                      color: "#f8fafc",
+                      color: "var(--text-color)",
                       fontWeight: 800,
                       fontSize: "1.5rem",
                       margin: "0 0 10px 0",
@@ -976,7 +985,7 @@ export default function App() {
                   </h3>
                   <p
                     style={{
-                      color: "#94a3b8",
+                      color: "var(--text-muted)",
                       fontSize: "0.95rem",
                       maxWidth: "400px",
                       lineHeight: 1.6,
@@ -1178,7 +1187,7 @@ export default function App() {
                         margin: 0,
                         fontSize: "1.2rem",
                         fontWeight: 800,
-                        color: "#f8fafc",
+                        color: "var(--text-color)",
                       }}
                     >
                       📄 Formatted Legal Plaintext Document
@@ -1235,7 +1244,7 @@ export default function App() {
                   <div style={{ fontSize: "4rem", marginBottom: 20 }}>📝</div>
                   <h3
                     style={{
-                      color: "#f8fafc",
+                      color: "var(--text-color)",
                       fontWeight: 800,
                       fontSize: "1.5rem",
                       margin: "0 0 10px 0",
@@ -1245,7 +1254,7 @@ export default function App() {
                   </h3>
                   <p
                     style={{
-                      color: "#94a3b8",
+                      color: "var(--text-muted)",
                       fontSize: "0.95rem",
                       maxWidth: "400px",
                       lineHeight: 1.6,
@@ -1481,7 +1490,7 @@ export default function App() {
                       margin: "0 0 10px 0",
                       fontSize: "1.20rem",
                       fontWeight: 800,
-                      color: "#f8fafc",
+                      color: "var(--text-color)",
                     }}
                   >
                     🎯 Found {matchedSchemes.length} Matching Welfare Scheme(s)
@@ -1519,7 +1528,7 @@ export default function App() {
                   <div style={{ fontSize: "4rem", marginBottom: 20 }}>🎯</div>
                   <h3
                     style={{
-                      color: "#f8fafc",
+                      color: "var(--text-color)",
                       fontWeight: 800,
                       fontSize: "1.5rem",
                       margin: "0 0 10px 0",
@@ -1529,7 +1538,7 @@ export default function App() {
                   </h3>
                   <p
                     style={{
-                      color: "#94a3b8",
+                      color: "var(--text-muted)",
                       fontSize: "0.95rem",
                       maxWidth: "400px",
                       lineHeight: 1.6,
@@ -1704,7 +1713,7 @@ export default function App() {
                         margin: 0,
                         fontSize: "1.2rem",
                         fontWeight: 800,
-                        color: "#f8fafc",
+                        color: "var(--text-color)",
                       }}
                     >
                       📊 Procedural Triage & Action Roadmap
@@ -1837,7 +1846,7 @@ export default function App() {
                   <div style={{ fontSize: "4rem", marginBottom: 20 }}>🧭</div>
                   <h3
                     style={{
-                      color: "#f8fafc",
+                      color: "var(--text-color)",
                       fontWeight: 800,
                       fontSize: "1.5rem",
                       margin: "0 0 10px 0",
@@ -1847,7 +1856,7 @@ export default function App() {
                   </h3>
                   <p
                     style={{
-                      color: "#94a3b8",
+                      color: "var(--text-muted)",
                       fontSize: "0.95rem",
                       maxWidth: "400px",
                       lineHeight: 1.6,
