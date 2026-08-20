@@ -19,6 +19,8 @@ import {
   Check,
   Compass,
   Search,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 const disputeCategories = [
@@ -121,6 +123,20 @@ const parseMarkdownText = (text) => {
 };
 
 export default function App() {
+  // State for theme: light or dark
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem("theme") || "dark";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
   // State for global tab navigation
   const [activeTab, setActiveTab] = useState("law-explainer"); // law-explainer, form-filler, schemes, triage
 
@@ -447,23 +463,14 @@ export default function App() {
     setTimeout(() => setCopiedState(false), 2000);
   };
 
+  // Render Spatial 3D Logo (reusable)
   const render3DLogo = () => (
     <div className="logo-container">
       <div className="logo-3d-scene">
-        {/* Glowing Background Aura */}
-        <div className="logo-glow-aura"></div>
-        
-        {/* Central 3D Prism */}
         <div className="logo-3d-prism">
-          <div className="logo-face logo-face-en">
-            <img src="/sama-vidhana.png" alt="SAMA-VIDHANA Logo" className="logo-face-img" />
-          </div>
-          <div className="logo-face logo-face-hi">
-            <img src="/sama-vidhana-hindi.jpg" alt="SAMA-VIDHANA Hindi Logo" className="logo-face-img" />
-          </div>
-          <div className="logo-face logo-face-kn">
-            <img src="/sama-vidhana-kannada.jpg" alt="SAMA-VIDHANA Kannada Logo" className="logo-face-img" />
-          </div>
+          <div className="logo-face logo-face-en">🏛️ SAMA-VIDHANA</div>
+          <div className="logo-face logo-face-hi">⚖️ सम-विधान</div>
+          <div className="logo-face logo-face-kn">🏛️ ಸಮ-ವಿಧಾನ</div>
         </div>
       </div>
     </div>
@@ -476,7 +483,7 @@ export default function App() {
       {/* GLOBAL HEADER BAR */}
       <header className="app-header">
         <div className="header-info">
-          <img src="/sama-vidhana.png" alt="SAMA-VIDHANA Logo" className="header-logo" />
+          <h1 className="header-title">🏛️ SAMA-VIDHANA</h1>
           <p className="header-subtitle">
             Civic & Legal Empowerment AI Assistant • Powered by Mistral 7B &
             FAISS RAG
@@ -512,6 +519,26 @@ export default function App() {
         </div>
 
         <div className="header-badges">
+          <button
+            onClick={toggleTheme}
+            className="theme-toggle-btn"
+            title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-color)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "8px",
+              borderRadius: "50%",
+              marginRight: "8px",
+              transition: "all 0.2s ease"
+            }}
+          >
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
           <span className="badge-pill">open-mistral-7b</span>
           <span className="badge-pill">Grounded RAG</span>
         </div>
@@ -1158,9 +1185,12 @@ export default function App() {
                     </h2>
                   </div>
 
-                  <pre className="plaintext-pre-output h-full w-full overflow-y-auto">
-                    {generatedForm}
-                  </pre>
+                  <div className="paper-letter-container">
+                    <div className="paper-sheet">
+                      <div className="paper-red-margin" />
+                      <pre className="paper-content">{generatedForm}</pre>
+                    </div>
+                  </div>
 
                   <div className="action-bar">
                     <button
@@ -1292,10 +1322,9 @@ export default function App() {
                   <input
                     type="number"
                     className="form-input"
-                    min="0"
+                    min="1"
                     max="110"
                     value={citizenProfile.age}
-                    onKeyDown={(e) => e.preventDefault()}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "") {
@@ -1736,11 +1765,11 @@ export default function App() {
                         return (
                           <li
                             key={idx}
-                            style={{ marginLeft: 15, listStyleType: "disc", color: "#f3f4f6" }}
+                            style={{ marginLeft: 15, listStyleType: "disc" }}
                           >
                             {parts.map((part, pIdx) =>
                               pIdx % 2 === 1 ? (
-                                <strong key={pIdx} style={{ color: "#ffffff" }}>{part}</strong>
+                                <strong key={pIdx}>{part}</strong>
                               ) : (
                                 part
                               ),
@@ -1750,10 +1779,10 @@ export default function App() {
                       } else if (line.trim()) {
                         const parts = line.split("**");
                         return (
-                          <p key={idx} style={{ color: "#f3f4f6" }}>
+                          <p key={idx}>
                             {parts.map((part, pIdx) =>
                               pIdx % 2 === 1 ? (
-                                <strong key={pIdx} style={{ color: "#ffffff" }}>{part}</strong>
+                                <strong key={pIdx}>{part}</strong>
                               ) : (
                                 part
                               ),
