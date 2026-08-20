@@ -127,7 +127,22 @@ def build_faiss_index_from_texts(texts: list[str], metadatas: list[dict] = None)
 def get_global_vectorstore() -> FAISS:
     """
     Read all PDF files in the 'data/' directory, chunk them, and index into FAISS.
+    Caches the FAISS index locally to speed up startup.
     """
+    embeddings = get_embeddings()
+    index_path = os.path.join(os.path.dirname(__file__), "faiss_index")
+    
+    # 1. Try to load existing local FAISS index
+    if os.path.exists(index_path):
+        try:
+            print("FAISS: Loading global legal database from local cache...")
+            vectorstore = FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)
+            print("FAISS: Global legal database loaded successfully from cache.")
+            return vectorstore
+        except Exception as e:
+            print(f"FAISS: Error loading from local cache: {e}. Will rebuild index.")
+
+    # 2. Rebuild index if not found or failed to load
     data_dir = os.path.join(os.path.dirname(__file__), "data")
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
@@ -155,8 +170,16 @@ def get_global_vectorstore() -> FAISS:
         separators=["\n\n", "\n", "Section ", "Article ", ". ", " ", ""],
     )
     chunks = text_splitter.split_documents(all_docs)
-    embeddings = get_embeddings()
     vectorstore = FAISS.from_documents(chunks, embeddings)
+    
+    # Save the index locally for future runs
+    try:
+        print("FAISS: Saving global legal database to local cache...")
+        vectorstore.save_local(index_path)
+        print("FAISS: Global legal database saved successfully to cache.")
+    except Exception as e:
+        print(f"FAISS: Error saving to cache: {e}")
+        
     return vectorstore
 
 
@@ -172,10 +195,10 @@ Citizen's Question:
 {question}
 
 You MUST output your response in JSON format. The JSON object must contain the following keys:
-1. "rights": Explain the civic and legal rights that apply to the citizen's situation based on the context. You MUST format this as a structured list of bullet points using hyphens (e.g., "- Right detail"). Use bolding (e.g., "**Key concept**") where appropriate. Keep it in plain, readable English. (string/markdown)
+1. "rights": A single string containing a markdown-formatted structured list of bullet points (each starting with a hyphen and a space: "- ") explaining the civic and legal rights that apply to the citizen's situation based on the context. Ensure this is a single JSON string value, NOT a JSON array of strings. Use bolding (e.g., "**Key concept**") where appropriate.
 2. "eligibility": List the eligibility conditions or requirements mentioned in the context. For each condition, determine its status based on the user's question (e.g., "Satisfied", "Required", "Information Needed"). Format this as a JSON list of objects, each with "condition" and "status" keys.
-3. "benefits": Explain what benefits, remedies, or actions the citizen can take based on the context (e.g., how to apply, who to contact, next steps). You MUST format this as a structured list of bullet points using hyphens (e.g., "- Benefit detail"). Use bolding where appropriate. (string/markdown)
-4. "risks": Explain what risks, limitations, exceptions, deadlines, or warnings the citizen should consider. You MUST format this as a structured list of bullet points using hyphens (e.g., "- Risk detail"). Use bolding where appropriate. (string/markdown)
+3. "benefits": A single string containing a markdown-formatted structured list of bullet points (each starting with a hyphen and a space: "- ") explaining what benefits, remedies, or actions the citizen can take based on the context (e.g., how to apply, who to contact, next steps). Ensure this is a single JSON string value, NOT a JSON array of strings. Use bolding where appropriate.
+4. "risks": A single string containing a markdown-formatted structured list of bullet points (each starting with a hyphen and a space: "- ") explaining what risks, limitations, exceptions, deadlines, or warnings the citizen should consider. Ensure this is a single JSON string value, NOT a JSON array of strings. Use bolding where appropriate.
 
 Ensure the output is valid JSON and nothing else. Do not wrap in markdown code blocks.
 """
@@ -185,103 +208,121 @@ def parse_json_response(response_text: str) -> dict:
     """
     Parses JSON response with robust cleanup, regex extraction, and ast.literal_eval fallbacks.
     """
+    import json
+    import re
+    import ast
+
     cleaned = response_text.strip()
     
-    # 1. Try direct JSON load
-    try:
-        data = json.loads(cleaned, strict=False)
-        if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
-            return data
-    except Exception:
-        pass
-        
-    # 2. Try code block stripping
+    # 1. Try code block stripping
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```[a-zA-Z]*\n", "", cleaned)
         cleaned = re.sub(r"\n```$", "", cleaned)
         cleaned = cleaned.strip()
         
+    # 2. Try direct JSON load on the cleaned string
     try:
         data = json.loads(cleaned, strict=False)
-        if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
-            return data
+        if isinstance(data, dict):
+            # Check and normalize keys
+            normalized = {}
+            for key in ["rights", "eligibility", "benefits", "risks"]:
+                val = data.get(key)
+                if val is not None:
+                    if key == "eligibility":
+                        if isinstance(val, list):
+                            normalized[key] = val
+                        else:
+                            normalized[key] = [{"condition": str(val), "status": "Information Needed"}]
+                    else:
+                        if isinstance(val, list):
+                            normalized[key] = "\n".join([str(item) for item in val])
+                        else:
+                            normalized[key] = str(val)
+                else:
+                    normalized[key] = [] if key == "eligibility" else ""
+            return normalized
     except Exception:
         pass
-        
-    # 3. Extract JSON object using regex (greedy match from first { to last })
-    json_match = re.search(r"(\{.*\})", response_text, re.DOTALL)
-    if json_match:
-        json_candidate = json_match.group(1).strip()
-        try:
-            data = json.loads(json_candidate, strict=False)
-            if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
-                return data
-        except Exception:
-            pass
-            
-        # Try ast.literal_eval on the candidate
-        try:
-            import ast
-            data = ast.literal_eval(json_candidate)
-            if isinstance(data, dict) and all(k in data for k in ["rights", "eligibility", "benefits", "risks"]):
-                return data
-        except Exception:
-            pass
 
-    # 4. Deep structural regex parser (handles unescaped double quotes inside strings)
+    # 3. If direct load fails, use robust regex extraction for individual fields
+    def extract_field_value(field_name, next_field_name, text):
+        if next_field_name:
+            pattern = rf'"{field_name}"\s*:\s*(.*?)\s*,\s*"{next_field_name}"'
+        else:
+            pattern = rf'"{field_name}"\s*:\s*(.*?)\s*}}\s*$'
+            
+        match = re.search(pattern, text, re.DOTALL)
+        if not match and not next_field_name:
+            # Fallback for risks/last key if there are trailing characters
+            pattern = rf'"{field_name}"\s*:\s*(.*?)\s*[^"]*$'
+            match = re.search(pattern, text, re.DOTALL)
+            
+        if match:
+            val_str = match.group(1).strip()
+            # Try parsing as JSON
+            try:
+                return json.loads(val_str, strict=False)
+            except Exception:
+                pass
+            # Try ast.literal_eval
+            try:
+                return ast.literal_eval(val_str)
+            except Exception:
+                pass
+            # If it's a string with outer quotes
+            if val_str.startswith('"') and val_str.endswith('"'):
+                return val_str[1:-1].replace('\\"', '"').replace('\\n', '\n')
+            # If it's a list with missing closing bracket/quotes
+            if val_str.startswith('['):
+                for suffix in [']', '"]', '"]\n', '"] }']:
+                    try:
+                        parsed_list = json.loads(val_str + suffix, strict=False)
+                        if isinstance(parsed_list, list):
+                            return parsed_list
+                    except Exception:
+                        pass
+                # Manual fallback list parsing for list elements
+                items = []
+                for item_match in re.finditer(r'"(.*?)"', val_str, re.DOTALL):
+                    items.append(item_match.group(1).replace('\\n', '\n').replace('\\"', '"'))
+                if items:
+                    return items
+            return val_str
+        return None
+
     try:
         parsed_data = {}
+        parsed_data["rights"] = extract_field_value("rights", "eligibility", cleaned)
+        parsed_data["eligibility"] = extract_field_value("eligibility", "benefits", cleaned)
+        parsed_data["benefits"] = extract_field_value("benefits", "risks", cleaned)
+        parsed_data["risks"] = extract_field_value("risks", None, cleaned)
+
+        # Normalize the extracted data
+        normalized = {}
+        for key in ["rights", "eligibility", "benefits", "risks"]:
+            val = parsed_data.get(key)
+            if val is not None:
+                if key == "eligibility":
+                    if isinstance(val, list):
+                        normalized[key] = val
+                    else:
+                        normalized[key] = [{"condition": str(val), "status": "Information Needed"}]
+                else:
+                    if isinstance(val, list):
+                        normalized[key] = "\n".join([str(item) for item in val])
+                    else:
+                        normalized[key] = str(val)
+            else:
+                normalized[key] = [] if key == "eligibility" else ""
         
-        # Extract rights
-        rights_match = re.search(r'"rights"\s*:\s*"(.*?)"\s*,\s*"eligibility"', response_text, re.DOTALL)
-        if rights_match:
-            parsed_data["rights"] = rights_match.group(1).strip()
-        else:
-            # Fallback match up to next key
-            rights_match = re.search(r'"rights"\s*:\s*"(.*?)"\s*,\s*"\w+"', response_text, re.DOTALL)
-            if rights_match:
-                parsed_data["rights"] = rights_match.group(1).strip()
-
-        # Extract eligibility list
-        elig_match = re.search(r'"eligibility"\s*:\s*(\[.*?\])\s*,\s*"benefits"', response_text, re.DOTALL)
-        if elig_match:
-            elig_str = elig_match.group(1).strip()
-            try:
-                parsed_data["eligibility"] = json.loads(elig_str, strict=False)
-            except Exception:
-                # Manual parse list items
-                items = []
-                for item_match in re.finditer(r'\{\s*"condition"\s*:\s*"(.*?)"\s*,\s*"status"\s*:\s*"(.*?)"\s*\}', elig_str, re.DOTALL):
-                    items.append({
-                        "condition": item_match.group(1).strip(),
-                        "status": item_match.group(2).strip()
-                    })
-                parsed_data["eligibility"] = items
-        
-        # Extract benefits
-        benefits_match = re.search(r'"benefits"\s*:\s*"(.*?)"\s*,\s*"risks"', response_text, re.DOTALL)
-        if benefits_match:
-            parsed_data["benefits"] = benefits_match.group(1).strip()
-
-        # Extract risks
-        risks_match = re.search(r'"risks"\s*:\s*"(.*?)"\s*\}\s*$', response_text, re.DOTALL)
-        if risks_match:
-            parsed_data["risks"] = risks_match.group(1).strip()
-        else:
-            risks_match = re.search(r'"risks"\s*:\s*"(.*?)"\s*[^"]*$', response_text, re.DOTALL)
-            if risks_match:
-                parsed_data["risks"] = risks_match.group(1).strip()
-
-        # Verify if we successfully extracted the core fields
-        if parsed_data.get("rights") or parsed_data.get("benefits"):
-            for key in ["rights", "eligibility", "benefits", "risks"]:
-                if key not in parsed_data:
-                    parsed_data[key] = [] if key == "eligibility" else ""
-            return parsed_data
+        # If we successfully got rights or benefits, return it
+        if normalized["rights"] or normalized["benefits"]:
+            return normalized
     except Exception as e:
-        print(f"Deep regex parser error: {e}")
-        
-    # 5. Final fallback structure
+        print(f"Robust regex parser error: {e}")
+
+    # 4. Final fallback structure
     return {
         "rights": response_text,
         "eligibility": [{"condition": "Verify requirements in sources", "status": "Information Needed"}],
