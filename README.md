@@ -156,3 +156,6 @@ All citizen questions and document chunks are isolated within strict XML boundar
 ## ⚖️ Disclaimer
 
 *SAMA-VIDHANA is an AI-powered civic empowerment tool designed strictly for informational and procedural guidance. It does not constitute formal legal representation, legal practice, or an attorney-client relationship. For formal litigation, dispute filing, or court appearances, consult an advocate registered with the State Bar Council.*
+
+***THANK YOU***
+-Team *Sama-Vidhana*
