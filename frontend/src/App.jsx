@@ -23,6 +23,10 @@ import {
 
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
+if (typeof window !== "undefined") {
+  console.log("[SAMA-VIDHANA] Active API Base URL:", API_BASE || "(None configured - using relative origin)");
+}
+
 const disputeCategories = [
   "Consumer Defect & Service Deficiency (E-commerce, Electronics, Airlines, Banking)",
   "Real Estate & Builder Delay (RERA, Possession, Undisclosed Charges)",
