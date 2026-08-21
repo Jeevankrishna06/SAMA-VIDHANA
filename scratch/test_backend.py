@@ -4,27 +4,30 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi.testclient import TestClient
-import main
 from main import app
 
 client = TestClient(app)
 
-# 1. Test /health (Should be instant and not initialize GLOBAL_VS or embeddings)
-print("Testing GET /health...")
-res_health = client.get("/health")
-print(f"GET /health -> Status: {res_health.status_code}, Body: {res_health.json()}")
-assert res_health.status_code == 200
-assert res_health.json() == {"status": "ok"}
-print(f"GLOBAL_VS initialized after /health? {main.GLOBAL_VS is not None}")
-assert main.GLOBAL_VS is None, "GLOBAL_VS should NOT be initialized by /health"
+# 1. Test CORS preflight (OPTIONS request) from Netlify origin
+print("Testing CORS OPTIONS preflight from https://sama-vidhana.netlify.app...")
+headers = {
+    "Origin": "https://sama-vidhana.netlify.app",
+    "Access-Control-Request-Method": "POST",
+    "Access-Control-Request-Headers": "content-type",
+}
+res_opt = client.options("/api/chat", headers=headers)
+print("OPTIONS status code:", res_opt.status_code)
+print("Access-Control-Allow-Origin:", res_opt.headers.get("access-control-allow-origin"))
+print("Access-Control-Allow-Credentials:", res_opt.headers.get("access-control-allow-credentials"))
+print("Access-Control-Allow-Methods:", res_opt.headers.get("access-control-allow-methods"))
 
-# 2. Test /api/sources (Should return list of sources without initializing GLOBAL_VS or embeddings)
-print("\nTesting GET /api/sources...")
-res_sources = client.get("/api/sources")
-print(f"GET /api/sources -> Status: {res_sources.status_code}")
-print(f"Global sources count: {len(res_sources.json().get('global_sources', []))}")
-assert res_sources.status_code == 200
-print(f"GLOBAL_VS initialized after /api/sources? {main.GLOBAL_VS is not None}")
-assert main.GLOBAL_VS is None, "GLOBAL_VS should NOT be initialized by /api/sources"
+assert res_opt.status_code == 200
+assert res_opt.headers.get("access-control-allow-origin") == "https://sama-vidhana.netlify.app"
 
-print("\nAll tests passed successfully! Startup and monitoring endpoints are 100% lightweight and decoupled from ML models.")
+# 2. Test GET /health with Netlify origin
+res_health = client.get("/health", headers={"Origin": "https://sama-vidhana.netlify.app"})
+print("\nGET /health status:", res_health.status_code)
+print("Access-Control-Allow-Origin:", res_health.headers.get("access-control-allow-origin"))
+assert res_health.headers.get("access-control-allow-origin") == "https://sama-vidhana.netlify.app"
+
+print("\nCORS preflight & requests from Netlify origin verified successfully!")
