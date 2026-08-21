@@ -21,6 +21,8 @@ import {
   Search,
 } from "lucide-react";
 
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+
 const disputeCategories = [
   "Consumer Defect & Service Deficiency (E-commerce, Electronics, Airlines, Banking)",
   "Real Estate & Builder Delay (RERA, Possession, Undisclosed Charges)",
@@ -192,7 +194,7 @@ export default function App() {
 
   const fetchSources = async () => {
     try {
-      const res = await fetch("/api/sources");
+      const res = await fetch(`${API_BASE}/api/sources`);
       if (res.ok) {
         const data = await res.json();
         setSources(data);
@@ -211,7 +213,7 @@ export default function App() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("/api/upload", {
+      const res = await fetch(`${API_BASE}/api/upload`, {
         method: "POST",
         body: formData,
       });
@@ -251,7 +253,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -296,8 +298,10 @@ export default function App() {
         answer: {
           rights: "Connection to API server failed.",
           eligibility: [],
-          benefits: "Is the FastAPI server running on http://localhost:8000?",
-          risks: "Please ensure uvicorn is running.",
+          benefits: API_BASE
+            ? `Could not connect to backend at ${API_BASE}.`
+            : "Is the FastAPI server running on http://localhost:8000 (or VITE_API_URL set)?",
+          risks: "Please ensure the FastAPI backend is running and reachable.",
         },
         sources: [],
         id: Date.now(),
@@ -331,7 +335,7 @@ export default function App() {
     }
     setFormGenerating(true);
     try {
-      const res = await fetch("/api/generate-form", {
+      const res = await fetch(`${API_BASE}/api/generate-form`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -365,7 +369,7 @@ export default function App() {
   const handleFindSchemes = async () => {
     setSchemesLoading(true);
     try {
-      const res = await fetch("/api/schemes", {
+      const res = await fetch(`${API_BASE}/api/schemes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -404,7 +408,7 @@ export default function App() {
     }
     setTriageLoading(true);
     try {
-      const res = await fetch("/api/triage", {
+      const res = await fetch(`${API_BASE}/api/triage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
