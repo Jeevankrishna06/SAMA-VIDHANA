@@ -729,11 +729,11 @@ export default function App() {
                     className="suggestion-chip"
                     onClick={() =>
                       handleSend(
-                        "What are the core tenant rights when a landlord keeps the security deposit?",
+                        "What are the consumer rights and remedies against defective goods or unfair trade practices under the Consumer Protection Act?",
                       )
                     }
                   >
-                    🏠 Tenant Deposit Rights
+                    🛡️ Consumer Protection Rights
                   </button>
                 </div>
 
