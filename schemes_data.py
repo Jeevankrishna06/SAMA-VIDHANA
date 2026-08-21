@@ -5,7 +5,6 @@ Contains comprehensive scheme definitions, eligibility rules, financial benefits
 
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
-import streamlit as st
 from rag_engine import get_embeddings
 
 GOVERNMENT_SCHEMES = [

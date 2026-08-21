@@ -65,11 +65,11 @@ The frontend needs a live FastAPI backend for RAG queries, document analysis, an
 3. Settings:
    - **Root Directory**: `SAMA-VIDHANA`
    - **Environment**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
+   - **Build Command**: `pip install --no-cache-dir -r requirements.txt`
    - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 4. Add Environment Variables:
-   - `MISTRAL_API_KEY`: Your Mistral AI API key
-   - `GEMINI_API_KEY`: (Optional) Your Gemini API key if using Google AI
+   - `MISTRAL_API_KEY`: Your Mistral AI API key (from console.mistral.ai)
+   - `PYTHONUNBUFFERED`: `1`
 
 ### 2. Railway / Fly.io / Hugging Face Spaces
 - Docker or `uvicorn main:app --host 0.0.0.0 --port 8000`

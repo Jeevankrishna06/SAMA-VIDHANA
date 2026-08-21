@@ -2,8 +2,13 @@ import os
 import io
 import json
 import re
-import streamlit as st
 from dotenv import load_dotenv
+
+# Limit thread pools for low-memory CPU container environments (e.g. Render 512MB RAM)
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+
 from pypdf import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -27,8 +32,9 @@ def get_mistral_api_key() -> str:
     if api_key and api_key.strip() and api_key != "your_mistral_api_key_here":
         return api_key.strip()
 
-    # 2. Check Streamlit secrets (Streamlit Community Cloud)
+    # 2. Check Streamlit secrets (if running in Streamlit Community Cloud)
     try:
+        import streamlit as st
         if "MISTRAL_API_KEY" in st.secrets:
             secret_key = st.secrets["MISTRAL_API_KEY"]
             if secret_key and secret_key.strip():
@@ -45,11 +51,15 @@ _GLOBAL_VECTORSTORE = None
 
 def get_embeddings():
     """
-    Load and cache sentence-transformers/all-MiniLM-L6-v2 embeddings.
+    Load and cache sentence-transformers/all-MiniLM-L6-v2 embeddings on CPU as a singleton.
     """
     global _GLOBAL_EMBEDDINGS
     if _GLOBAL_EMBEDDINGS is None:
-        _GLOBAL_EMBEDDINGS = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        _GLOBAL_EMBEDDINGS = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True},
+        )
     return _GLOBAL_EMBEDDINGS
 
 
