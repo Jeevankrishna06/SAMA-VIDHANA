@@ -1166,9 +1166,12 @@ export default function App() {
                     </h2>
                   </div>
 
-                  <pre className="plaintext-pre-output h-full w-full overflow-y-auto">
-                    {generatedForm}
-                  </pre>
+                  <div className="paper-letter-container">
+                    <div className="paper-sheet">
+                      <div className="paper-red-margin"></div>
+                      <pre className="paper-content">{generatedForm}</pre>
+                    </div>
+                  </div>
 
                   <div className="action-bar">
                     <button
@@ -1302,8 +1305,8 @@ export default function App() {
                     className="form-input"
                     min="0"
                     max="110"
+                    placeholder="e.g. 45"
                     value={citizenProfile.age}
-                    onKeyDown={(e) => e.preventDefault()}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "") {
