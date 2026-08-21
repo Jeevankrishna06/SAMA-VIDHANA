@@ -13,6 +13,7 @@
 |---|---|---|
 | **Frontend Web App** | [Netlify](https://sama-vidhana.netlify.app) | 🟢 Active |
 | **Backend API Server** | [Render](https://render.com) (FastAPI) | 🟢 Active (Free Tier) |
+| **Alternative Cloud App** | [Streamlit Community Cloud](https://share.streamlit.io) | 🟢 Ready (`app.py`) |
 
 > [!NOTE]
 > **Free-Tier Cold Start Notice**:
@@ -55,6 +56,7 @@ The application is organized into four purpose-built civic intelligence modules:
 |---|---|---|
 | **Frontend / Web UI** | React 19, Vite, TailwindCSS, Lucide Icons | Responsive single-page application with modern dark-mode aesthetic |
 | **Backend API** | FastAPI, Uvicorn | High-performance asynchronous REST API with sliding-window rate limiting |
+| **Alternative App** | Streamlit | Standalone single-script Python interface with custom 3D CSS styling |
 | **Language Model** | Mistral 7B (`open-mistral-7b`) | LLM for structured reasoning, simplification, and legal drafting |
 | **Embeddings** | `sentence-transformers/all-MiniLM-L6-v2` | Local on-device dense vector embeddings via HuggingFace |
 | **Vector Search** | FAISS (`faiss-cpu`) | In-memory similarity search with local disk index caching |
@@ -81,13 +83,15 @@ SAMA-VIDHANA features a sleek, dedicated dark-mode interface:
 
 ## 🚀 Local Development Setup
 
+To run SAMA-VIDHANA locally, start the FastAPI backend and Vite frontend in two separate terminals:
+
 ### 1. Clone the Repository
 ```bash
 git clone https://github.com/<YOUR_USERNAME>/SAMA-VIDHANA.git
 cd SAMA-VIDHANA
 ```
 
-### 2. Configure Virtual Environment & Backend
+### 2. Configure Virtual Environment
 **Windows (PowerShell):**
 ```powershell
 python -m venv .venv
@@ -112,14 +116,14 @@ Add your Mistral API Key to `.env`:
 MISTRAL_API_KEY=your_actual_mistral_api_key_here
 ```
 
-### 4. Start the FastAPI Backend Server
+### 4. Terminal 1 — Start the Backend (FastAPI)
 ```bash
-python -u -m uvicorn main:app --host 127.0.0.1 --port 8000
+python -u -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 The API server will run at `http://127.0.0.1:8000`.
 
-### 5. Start the React Frontend
-In a separate terminal:
+### 5. Terminal 2 — Start the Frontend (React / Vite)
+In a second terminal window:
 ```bash
 cd frontend
 npm install
@@ -129,18 +133,24 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## ☁️ Alternative Deployment: Streamlit Cloud
+## ☁️ Streamlit Community Cloud Deployment
 
-SAMA-VIDHANA also includes a standalone Streamlit entry point ([`app.py`](file:///d:/SAMA-VIDHANA/SAMA-VIDHANA/app.py)):
+SAMA-VIDHANA includes complete Streamlit Cloud deployment support ([`app.py`](file:///d:/SAMA-VIDHANA/SAMA-VIDHANA/app.py)):
 
-1. Push your repository to GitHub.
-2. Navigate to [share.streamlit.io](https://share.streamlit.io/) and select the repository.
-3. Set the main file path to `app.py`.
-4. Under **Advanced Settings** -> **Secrets**, add your Mistral API key:
+1. Push your repository to GitHub:
+   ```bash
+   git add .
+   git commit -m "feat: deploy to Streamlit Cloud"
+   git push origin main
+   ```
+2. Navigate to [share.streamlit.io](https://share.streamlit.io/) and log in with GitHub.
+3. Click **New app** and select your repository.
+4. Set the **Main file path** to `app.py`.
+5. Under **Advanced Settings** -> **Secrets**, add your Mistral API key:
    ```toml
    MISTRAL_API_KEY = "your_actual_mistral_api_key_here"
    ```
-5. Click **Deploy**.
+6. Click **Deploy!** *(Dependencies and Linux libraries are automatically configured via `requirements.txt`, `packages.txt`, and `.streamlit/config.toml`)*.
 
 ---
 
@@ -157,5 +167,7 @@ All citizen questions and document chunks are isolated within strict XML boundar
 
 *SAMA-VIDHANA is an AI-powered civic empowerment tool designed strictly for informational and procedural guidance. It does not constitute formal legal representation, legal practice, or an attorney-client relationship. For formal litigation, dispute filing, or court appearances, consult an advocate registered with the State Bar Council.*
 
-***THANK YOU***
+---
+
+***THANK YOU***  
 -Team *Sama-Vidhana*
