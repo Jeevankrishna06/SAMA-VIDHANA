@@ -155,7 +155,7 @@ def get_global_vectorstore() -> FAISS:
 
     # 1. Try loading from saved faiss_index directory
     if os.path.exists(faiss_dir) and (
-        os.path.exists(os.path.join(faiss_dir, "index.faiss")) or
+        os.path.exists(os.path.join(faiss_dir, "index.faiss")) and
         os.path.exists(os.path.join(faiss_dir, "index.pkl"))
     ):
         try:

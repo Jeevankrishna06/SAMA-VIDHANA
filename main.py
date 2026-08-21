@@ -25,6 +25,16 @@ GLOBAL_VS = None
 USER_VECTORSTORES = {}  # filename -> FAISS index
 UPLOAD_DIR = "./uploads"
 
+def get_global_vs():
+    """
+    Lazy-load the global legal FAISS index on demand.
+    Avoids loading PyTorch embedding models or vectorstores at application boot.
+    """
+    global GLOBAL_VS
+    if GLOBAL_VS is None:
+        GLOBAL_VS = rag_engine.get_global_vectorstore()
+    return GLOBAL_VS
+
 def log_request_response(endpoint: str, payload: dict, response: dict):
     log_path = "../.log"
     try:
@@ -40,17 +50,17 @@ def log_request_response(endpoint: str, payload: dict, response: dict):
 # Ensure upload directory exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-import threading
-
 @app.on_event("startup")
 async def startup_event():
-    def index_background():
-        global GLOBAL_VS
-        print("FastAPI: Starting global legal database indexing in background thread...")
-        GLOBAL_VS = rag_engine.get_global_vectorstore()
-        print("FastAPI: Global legal database indexing completed successfully.")
-        
-    threading.Thread(target=index_background, daemon=True).start()
+    print("FastAPI: SAMA-VIDHANA API initialized in lightweight mode (Lazy loading enabled).")
+
+@app.get("/health")
+async def health_check():
+    """
+    Lightweight health check endpoint for Render / cloud monitoring.
+    Returns immediately without loading ML models, vectorstores, or PDFs.
+    """
+    return {"status": "ok"}
 
 @app.get("/api/sources")
 async def get_sources():
@@ -133,29 +143,12 @@ async def chat(payload: dict):
                 
     retrieved_docs = []
     
-    # 1. Query global acts
+    # 1. Query global acts (Lazy-loaded)
     if use_global:
-        if GLOBAL_VS is None:
-            # Check if there are acts to index
-            data_dir = "./data"
-            global_acts = []
-            if os.path.exists(data_dir):
-                global_acts = [f for f in os.listdir(data_dir) if f.endswith(".pdf")]
-            if global_acts:
-                res = {
-                    "answer": {
-                        "rights": "SAMA-VIDHANA global legal database is currently indexing its documents in the background. Please wait about 15-20 seconds and try your question again.",
-                        "eligibility": [{"condition": "Database indexing in progress", "status": "Information Needed"}],
-                        "benefits": "Service is initializing. You can also upload a PDF document on the left and query it immediately.",
-                        "risks": "Database starting up."
-                    },
-                    "sources": []
-                }
-                log_request_response("/api/chat", payload, res)
-                return res
-        else:
+        global_vs = get_global_vs()
+        if global_vs is not None:
             try:
-                global_retriever = GLOBAL_VS.as_retriever(search_kwargs={"k": 4})
+                global_retriever = global_vs.as_retriever(search_kwargs={"k": 4})
                 global_docs = global_retriever.invoke(question)
                 retrieved_docs.extend(global_docs)
             except Exception as e:
